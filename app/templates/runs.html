@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Run History</h1>
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Status</th>
+        <th>Trigger</th>
+        <th>Dry Run</th>
+        <th>Started</th>
+        <th>Ended</th>
+        <th>Message</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in runs %}
+      <tr>
+        <td>{{ run.id }}</td>
+        <td>{{ run.status }}</td>
+        <td>{{ run.trigger_type }}</td>
+        <td>{{ run.dry_run }}</td>
+        <td>{{ run.started_at }}</td>
+        <td>{{ run.ended_at }}</td>
+        <td>{{ run.message or "-" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
