@@ -7,9 +7,9 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.auth import is_authenticated, verify_password
-from app.config import settings
 from app.db import get_db
 from app.models import Run
+from app.services import settings_service
 
 
 router = APIRouter()
@@ -33,7 +33,9 @@ def login_page(request: Request):
 
 @router.post("/login")
 def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
-    if username == settings.admin_username and verify_password(password, request.app.state.admin_password_hash):
+    stored_hash = settings_service.get("admin_password_hash")
+    stored_username = settings_service.get("admin_username")
+    if stored_hash and username == stored_username and verify_password(password, stored_hash):
         request.session["is_authenticated"] = True
         return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card setup-card">
+  <h1>First-Time Setup</h1>
+  <p>Fill in the details below. Everything is stored in the local database — your <code>.env</code> file only needs <code>SECRET_KEY</code>.</p>
+
+  {% if error %}
+  <p class="error-text">{{ error }}</p>
+  {% endif %}
+
+  <form method="post" action="/setup">
+
+    <h2>Admin Account</h2>
+    <div class="input-block">
+      <label for="admin_username">Username</label><br />
+      <input id="admin_username" name="admin_username" value="admin" required />
+    </div>
+    <div class="input-block">
+      <label for="admin_password">Password</label><br />
+      <input id="admin_password" type="password" name="admin_password" required />
+    </div>
+    <div class="input-block">
+      <label for="admin_password_confirm">Confirm Password</label><br />
+      <input id="admin_password_confirm" type="password" name="admin_password_confirm" required />
+    </div>
+
+    <h2>Reddit API</h2>
+    <p>Create an app at <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener">reddit.com/prefs/apps</a> — choose <em>script</em> type.</p>
+    <div class="input-block">
+      <label for="reddit_client_id">Client ID</label><br />
+      <input id="reddit_client_id" name="reddit_client_id" required />
+    </div>
+    <div class="input-block">
+      <label for="reddit_client_secret">Client Secret</label><br />
+      <input id="reddit_client_secret" name="reddit_client_secret" required />
+    </div>
+    <div class="input-block">
+      <label for="reddit_subreddit">Subreddit (without r/)</label><br />
+      <input id="reddit_subreddit" name="reddit_subreddit" value="MelodicDeathMetal" required />
+    </div>
+
+    <h2>Spotify API</h2>
+    <p>Create an app at <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>.</p>
+    <div class="input-block">
+      <label for="spotify_client_id">Client ID</label><br />
+      <input id="spotify_client_id" name="spotify_client_id" required />
+    </div>
+    <div class="input-block">
+      <label for="spotify_client_secret">Client Secret</label><br />
+      <input id="spotify_client_secret" name="spotify_client_secret" required />
+    </div>
+    <div class="input-block">
+      <label for="spotify_playlist_id">Playlist ID</label><br />
+      <input id="spotify_playlist_id" name="spotify_playlist_id" placeholder="Paste the ID from your playlist URL" required />
+    </div>
+    <div class="input-block">
+      <label for="spotify_redirect_uri">Redirect URI</label><br />
+      <input id="spotify_redirect_uri" name="spotify_redirect_uri" value="http://localhost:8000/callback" required />
+      <small class="muted-small">Must match exactly what you set in the Spotify app dashboard.</small>
+    </div>
+
+    <h2>Sync Settings</h2>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="sync_cap">Max songs in playlist</label><br />
+        <input id="sync_cap" name="sync_cap" type="number" min="1" max="500" value="25" required />
+      </div>
+      <div class="input-block flex-1">
+        <label for="sync_timezone">Timezone</label><br />
+        <input id="sync_timezone" name="sync_timezone" value="America/New_York" required />
+      </div>
+    </div>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="sync_hour">Run hour (0–23)</label><br />
+        <input id="sync_hour" name="sync_hour" type="number" min="0" max="23" value="7" required />
+      </div>
+      <div class="input-block flex-1">
+        <label for="sync_minute">Run minute (0–59)</label><br />
+        <input id="sync_minute" name="sync_minute" type="number" min="0" max="59" value="0" required />
+      </div>
+    </div>
+
+    <div class="mt-sm">
+      <button type="submit">Save and Continue</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+from fastapi import APIRouter, Form, Request, status
+from fastapi.responses import RedirectResponse
+from fastapi.templating import Jinja2Templates
+
+from app.auth import hash_password
+from app.services import settings_service
+
+router = APIRouter()
+templates = Jinja2Templates(directory="app/templates")
+
+
+@router.get("/setup")
+def setup_page(request: Request):
+    if settings_service.is_setup_complete():
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse("setup.html", {"request": request, "error": None})
+
+
+@router.post("/setup")
+def setup_submit(
+    request: Request,
+    admin_username: str = Form(...),
+    admin_password: str = Form(...),
+    admin_password_confirm: str = Form(...),
+    reddit_client_id: str = Form(...),
+    reddit_client_secret: str = Form(...),
+    reddit_subreddit: str = Form("MelodicDeathMetal"),
+    spotify_client_id: str = Form(...),
+    spotify_client_secret: str = Form(...),
+    spotify_playlist_id: str = Form(...),
+    spotify_redirect_uri: str = Form("http://localhost:8000/callback"),
+    sync_cap: int = Form(25),
+    sync_timezone: str = Form("America/New_York"),
+    sync_hour: int = Form(7),
+    sync_minute: int = Form(0),
+):
+    if settings_service.is_setup_complete():
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    if admin_password != admin_password_confirm:
+        return templates.TemplateResponse(
+            "setup.html",
+            {"request": request, "error": "Passwords do not match"},
+            status_code=400,
+        )
+
+    settings_service.put_many({
+        "admin_username": admin_username,
+        "admin_password_hash": hash_password(admin_password),
+        "reddit_client_id": reddit_client_id,
+        "reddit_client_secret": reddit_client_secret,
+        "reddit_subreddit": reddit_subreddit,
+        "reddit_user_agent": "listige-clone/0.1",
+        "spotify_client_id": spotify_client_id,
+        "spotify_client_secret": spotify_client_secret,
+        "spotify_playlist_id": spotify_playlist_id,
+        "spotify_redirect_uri": spotify_redirect_uri,
+        "sync_cap": str(sync_cap),
+        "sync_timezone": sync_timezone,
+        "sync_hour": str(sync_hour),
+        "sync_minute": str(sync_minute),
+        "sync_enabled": "true",
+    })
+
+    # Start the daily scheduler now that credentials are available.
+    scheduler_manager = getattr(request.app.state, "scheduler_manager", None)
+    if scheduler_manager:
+        scheduler_manager.reschedule()
+
+    return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
