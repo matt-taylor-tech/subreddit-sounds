@@ -44,6 +44,11 @@
         <input id="sync_cap" name="sync_cap" type="number" min="1" max="500" value="{{ settings.sync_cap }}" required />
       </div>
       <div class="input-block flex-1">
+        <label for="min_track_duration_sec">Minimum track length (seconds)</label><br />
+        <input id="min_track_duration_sec" name="min_track_duration_sec" type="number" min="0" max="600" value="{{ settings.min_track_duration_sec }}" required />
+        <small class="muted-small">Tracks shorter than this are skipped. 120 = 2 min. Set 0 to disable.</small>
+      </div>
+      <div class="input-block flex-1">
         <label for="sync_timezone">Timezone</label><br />
         <input id="sync_timezone" name="sync_timezone" value="{{ settings.sync_timezone }}" required />
       </div>

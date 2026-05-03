@@ -49,6 +49,7 @@ def _collect_tracks(
     posts: list[dict],
     log: Callable[[str], None],
     genre_filter: str | None = None,
+    min_duration_ms: int | None = None,
 ) -> tuple[list[str], int]:
     """
     Resolve each post URL to a Spotify track ID.
@@ -85,7 +86,7 @@ def _collect_tracks(
                 log(f"  [youtube] skipped (full album)  —  {yt_title[:70]}")
                 continue
             artist, query = parse_youtube_title(yt_title)
-            track_id = spotify_service.search_track(query, artist=artist, genre_filter=genre_filter)
+            track_id = spotify_service.search_track(query, artist=artist, genre_filter=genre_filter, min_duration_ms=min_duration_ms)
             if track_id and track_id not in seen:
                 seen.add(track_id)
                 track_ids.append(track_id)
@@ -101,6 +102,7 @@ def _collect_bandcamp_tracks(
     tag: str,
     log: Callable[[str], None],
     seen: set[str],
+    min_duration_ms: int | None = None,
 ) -> tuple[list[str], int]:
     """Resolve Bandcamp new releases for a tag to Spotify track IDs."""
     tracks = bandcamp_service.fetch_new_tracks(tag)
@@ -108,7 +110,7 @@ def _collect_bandcamp_tracks(
     track_ids: list[str] = []
     for item in tracks:
         artist, title = item["artist"], item["title"]
-        track_id = spotify_service.search_track(title, artist=artist)
+        track_id = spotify_service.search_track(title, artist=artist, min_duration_ms=min_duration_ms)
         if track_id and track_id not in seen:
             seen.add(track_id)
             track_ids.append(track_id)
@@ -144,6 +146,8 @@ class SyncService:
             sync_cap = int(settings_service.get("sync_cap", "25"))
             playlist_id = settings_service.get("spotify_playlist_id")
             genre_filter = settings_service.get("spotify_genre_filter") or None
+            min_dur_sec = int(settings_service.get("min_track_duration_sec", "120"))
+            min_duration_ms = min_dur_sec * 1000 if min_dur_sec > 0 else None
 
             # --- Reddit ---
             label = f"{sort}/{timeframe}" if sort == "top" else sort
@@ -161,7 +165,7 @@ class SyncService:
                 db.commit()
                 return run.id
 
-            new_track_ids, low_conf = _collect_tracks(posts, log, genre_filter=genre_filter)
+            new_track_ids, low_conf = _collect_tracks(posts, log, genre_filter=genre_filter, min_duration_ms=min_duration_ms)
             log(f"Resolved {len(new_track_ids)} unique track(s) from Reddit ({low_conf} via YouTube title search)")
 
             # --- Bandcamp ---
@@ -176,7 +180,7 @@ class SyncService:
                     log(f"Fetching Bandcamp new releases for tag '{tag}'...")
                     try:
                         bc_ids, bc_count = _collect_bandcamp_tracks(
-                            tag, log, seen=set(new_track_ids)
+                            tag, log, seen=set(new_track_ids), min_duration_ms=min_duration_ms
                         )
                         new_track_ids = new_track_ids + bc_ids
                         log(f"Added {bc_count} track(s) from Bandcamp tag '{tag}'")

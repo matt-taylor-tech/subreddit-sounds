@@ -114,12 +114,18 @@ def add_tracks(playlist_id: str, track_ids: list[str]) -> None:
             r.raise_for_status()
 
 
-def search_track(query: str, artist: str | None = None, genre_filter: str | None = None) -> str | None:
+def search_track(
+    query: str,
+    artist: str | None = None,
+    genre_filter: str | None = None,
+    min_duration_ms: int | None = None,
+) -> str | None:
     """Return the first Spotify track ID matching query, or None.
 
     When artist is provided, uses field-filtered search (artist:"X" track:"Y"),
     which is far more precise than freetext. genre_filter is only applied for
-    freetext fallback (when artist is None).
+    freetext fallback (when artist is None). Tracks shorter than min_duration_ms
+    are treated as no match.
     """
     if artist:
         q = f'artist:"{artist}" track:"{query}"'
@@ -134,7 +140,12 @@ def search_track(query: str, artist: str | None = None, genre_filter: str | None
         )
         r.raise_for_status()
     items = r.json().get("tracks", {}).get("items", [])
-    return items[0]["id"] if items else None
+    if not items:
+        return None
+    track = items[0]
+    if min_duration_ms and track.get("duration_ms", 0) < min_duration_ms:
+        return None
+    return track["id"]
 
 
 def get_tracks_info(track_ids: list[str]) -> dict[str, str]:
