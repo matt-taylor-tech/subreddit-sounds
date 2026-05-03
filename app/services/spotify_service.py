@@ -101,18 +101,49 @@ def add_tracks(playlist_id: str, track_ids: list[str]) -> None:
             r.raise_for_status()
 
 
-def search_track(query: str) -> str | None:
-    """Return the first Spotify track ID matching query, or None."""
+def search_track(query: str, artist: str | None = None, genre_filter: str | None = None) -> str | None:
+    """Return the first Spotify track ID matching query, or None.
+
+    When artist is provided, uses field-filtered search (artist:"X" track:"Y"),
+    which is far more precise than freetext. genre_filter is only applied for
+    freetext fallback (when artist is None).
+    """
+    if artist:
+        q = f'artist:"{artist}" track:"{query}"'
+    else:
+        q = f"{query} genre:{genre_filter}" if genre_filter else query
     token = get_access_token()
     with httpx.Client() as client:
         r = client.get(
             f"{_API}/search",
             headers={"Authorization": f"Bearer {token}"},
-            params={"q": query, "type": "track", "limit": 1},
+            params={"q": q, "type": "track", "limit": 1},
         )
         r.raise_for_status()
     items = r.json().get("tracks", {}).get("items", [])
     return items[0]["id"] if items else None
+
+
+def get_tracks_info(track_ids: list[str]) -> dict[str, str]:
+    """Return {track_id: 'Artist — Title'} for each ID, batched in groups of 50."""
+    if not track_ids:
+        return {}
+    token = get_access_token()
+    result: dict[str, str] = {}
+    with httpx.Client() as client:
+        for i in range(0, len(track_ids), 50):
+            batch = track_ids[i : i + 50]
+            r = client.get(
+                f"{_API}/tracks",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"ids": ",".join(batch)},
+            )
+            r.raise_for_status()
+            for track in r.json().get("tracks", []):
+                if track and track.get("id"):
+                    artists = ", ".join(a["name"] for a in track.get("artists", []))
+                    result[track["id"]] = f"{artists} — {track['name']}"
+    return result
 
 
 def remove_tracks(playlist_id: str, track_ids: list[str]) -> None:

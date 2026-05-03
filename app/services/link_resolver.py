@@ -48,7 +48,7 @@ def extract_youtube_video_id(url: str) -> str | None:
 
 _NOISE = re.compile(
     r"\s*[\(\[]"
-    r"(official\s*(music\s*)?video|official\s*audio|lyric(s)?\s*video|"
+    r"(official\s*(music\s*)?video|official\s*audio|official|lyric(s)?\s*video|"
     r"live(\s+at\s+\w+)?|full\s*album|hd|hq|4k|audio|video|visualizer|"
     r"remaster(ed)?|remix)"
     r"[\)\]]\s*$",
@@ -59,6 +59,19 @@ _NOISE = re.compile(
 def clean_youtube_title(title: str) -> str:
     """Strip common YouTube noise suffixes to improve Spotify search accuracy."""
     return _NOISE.sub("", title).strip()
+
+
+def parse_youtube_title(title: str) -> tuple[str | None, str]:
+    """Split "Artist - Track Title (noise)" into (artist, track).
+
+    Returns (None, cleaned_title) when no "Artist - " separator is found,
+    signalling the caller to fall back to a freetext Spotify search.
+    """
+    cleaned = _NOISE.sub("", title).strip()
+    if " - " in cleaned:
+        artist, _, track = cleaned.partition(" - ")
+        return artist.strip() or None, track.strip()
+    return None, cleaned
 
 
 def is_full_album(title: str) -> bool:

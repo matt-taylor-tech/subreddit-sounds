@@ -13,7 +13,9 @@ from app.services.link_resolver import (
     extract_spotify_track_id,
     extract_youtube_video_id,
     is_full_album,
+    parse_youtube_title,
 )
+from app.services import bandcamp_service
 from app.services.reconcile import reconcile_latest_cap
 
 
@@ -46,6 +48,7 @@ def _youtube_title(video_id: str) -> str | None:
 def _collect_tracks(
     posts: list[dict],
     log: Callable[[str], None],
+    genre_filter: str | None = None,
 ) -> tuple[list[str], int]:
     """
     Resolve each post URL to a Spotify track ID.
@@ -81,8 +84,8 @@ def _collect_tracks(
             if is_full_album(yt_title):
                 log(f"  [youtube] skipped (full album)  —  {yt_title[:70]}")
                 continue
-            query = clean_youtube_title(yt_title)
-            track_id = spotify_service.search_track(query)
+            artist, query = parse_youtube_title(yt_title)
+            track_id = spotify_service.search_track(query, artist=artist, genre_filter=genre_filter)
             if track_id and track_id not in seen:
                 seen.add(track_id)
                 track_ids.append(track_id)
@@ -92,6 +95,27 @@ def _collect_tracks(
                 log(f"  [youtube] no Spotify match for: {yt_title[:70]}")
 
     return track_ids, low_confidence
+
+
+def _collect_bandcamp_tracks(
+    tag: str,
+    log: Callable[[str], None],
+    seen: set[str],
+) -> tuple[list[str], int]:
+    """Resolve Bandcamp new releases for a tag to Spotify track IDs."""
+    tracks = bandcamp_service.fetch_new_tracks(tag)
+    log(f"  [bandcamp] fetched {len(tracks)} track(s) from tag '{tag}'")
+    track_ids: list[str] = []
+    for item in tracks:
+        artist, title = item["artist"], item["title"]
+        track_id = spotify_service.search_track(title, artist=artist)
+        if track_id and track_id not in seen:
+            seen.add(track_id)
+            track_ids.append(track_id)
+            log(f"  [bandcamp→spotify] {track_id}  —  {artist} - {title[:60]}")
+        elif not track_id:
+            log(f"  [bandcamp] no Spotify match: {artist} - {title[:60]}")
+    return track_ids, len(track_ids)
 
 
 class SyncService:
@@ -119,6 +143,7 @@ class SyncService:
             timeframe = settings_service.get("reddit_timeframe", "week")
             sync_cap = int(settings_service.get("sync_cap", "25"))
             playlist_id = settings_service.get("spotify_playlist_id")
+            genre_filter = settings_service.get("spotify_genre_filter") or None
 
             # --- Reddit ---
             label = f"{sort}/{timeframe}" if sort == "top" else sort
@@ -136,8 +161,33 @@ class SyncService:
                 db.commit()
                 return run.id
 
-            new_track_ids, low_conf = _collect_tracks(posts, log)
-            log(f"Resolved {len(new_track_ids)} unique track(s) ({low_conf} via YouTube title search)")
+            new_track_ids, low_conf = _collect_tracks(posts, log, genre_filter=genre_filter)
+            log(f"Resolved {len(new_track_ids)} unique track(s) from Reddit ({low_conf} via YouTube title search)")
+
+            # --- Bandcamp ---
+            bandcamp_enabled = settings_service.get("bandcamp_enabled", "false") == "true"
+            if bandcamp_enabled:
+                enabled_tags_raw = settings_service.get("bandcamp_enabled_tags", "")
+                if not enabled_tags_raw:
+                    # fall back to legacy single-tag setting
+                    enabled_tags_raw = settings_service.get("bandcamp_tag", "melodic-death-metal")
+                enabled_tags = [t.strip() for t in enabled_tags_raw.split(",") if t.strip()]
+                for tag in enabled_tags:
+                    log(f"Fetching Bandcamp new releases for tag '{tag}'...")
+                    try:
+                        bc_ids, bc_count = _collect_bandcamp_tracks(
+                            tag, log, seen=set(new_track_ids)
+                        )
+                        new_track_ids = new_track_ids + bc_ids
+                        log(f"Added {bc_count} track(s) from Bandcamp tag '{tag}'")
+                    except Exception as exc:
+                        log(f"  [bandcamp:{tag}] ERROR: {exc}")
+
+            # --- Resolved tracks summary ---
+            track_info = spotify_service.get_tracks_info(new_track_ids)
+            log(f"Resolved tracks ({len(new_track_ids)}):")
+            for i, tid in enumerate(new_track_ids, 1):
+                log(f"  {i:>3}. {track_info.get(tid, tid)}")
 
             # --- Spotify read ---
             log(f"Reading current playlist ({playlist_id})")
@@ -152,11 +202,12 @@ class SyncService:
             to_add = [tid for tid in desired_ids if tid not in current_set]
             to_remove = [tid for tid in current_ids if tid not in desired_set]
 
+            remove_info = spotify_service.get_tracks_info(to_remove)
             log(f"Tracks to add: {len(to_add)}, to remove: {len(to_remove)}")
             for tid in to_add:
-                log(f"  + {tid}")
+                log(f"  + {track_info.get(tid, tid)}")
             for tid in to_remove:
-                log(f"  - {tid}")
+                log(f"  - {remove_info.get(tid, tid)}")
 
             # --- Spotify write ---
             if dry_run:

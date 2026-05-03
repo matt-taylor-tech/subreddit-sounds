@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Settings</h1>
+
+{% if saved %}
+<p style="color: var(--accent);">&#10003; Settings saved.</p>
+{% endif %}
+
+<form method="post" action="/admin/settings">
+
+  <div class="card">
+    <h2>Reddit</h2>
+    <div class="input-block">
+      <label for="reddit_subreddit">Subreddit (without r/)</label><br />
+      <input id="reddit_subreddit" name="reddit_subreddit" value="{{ settings.reddit_subreddit }}" required />
+    </div>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="reddit_sort">Sort</label><br />
+        <select id="reddit_sort" name="reddit_sort">
+          <option value="top" {{ 'selected' if settings.reddit_sort == 'top' }}>top</option>
+          <option value="hot" {{ 'selected' if settings.reddit_sort == 'hot' }}>hot</option>
+          <option value="new" {{ 'selected' if settings.reddit_sort == 'new' }}>new</option>
+        </select>
+      </div>
+      <div class="input-block flex-1">
+        <label for="reddit_timeframe">Timeframe (top only)</label><br />
+        <select id="reddit_timeframe" name="reddit_timeframe">
+          <option value="day"   {{ 'selected' if settings.reddit_timeframe == 'day' }}>day</option>
+          <option value="week"  {{ 'selected' if settings.reddit_timeframe == 'week' }}>week</option>
+          <option value="month" {{ 'selected' if settings.reddit_timeframe == 'month' }}>month</option>
+          <option value="year"  {{ 'selected' if settings.reddit_timeframe == 'year' }}>year</option>
+          <option value="all"   {{ 'selected' if settings.reddit_timeframe == 'all' }}>all time</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Sync</h2>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="sync_cap">Max songs in playlist</label><br />
+        <input id="sync_cap" name="sync_cap" type="number" min="1" max="500" value="{{ settings.sync_cap }}" required />
+      </div>
+      <div class="input-block flex-1">
+        <label for="sync_timezone">Timezone</label><br />
+        <input id="sync_timezone" name="sync_timezone" value="{{ settings.sync_timezone }}" required />
+      </div>
+    </div>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="sync_hour">Run hour (0–23)</label><br />
+        <input id="sync_hour" name="sync_hour" type="number" min="0" max="23" value="{{ settings.sync_hour }}" required />
+      </div>
+      <div class="input-block flex-1">
+        <label for="sync_minute">Run minute (0–59)</label><br />
+        <input id="sync_minute" name="sync_minute" type="number" min="0" max="59" value="{{ settings.sync_minute }}" required />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Spotify</h2>
+    <div class="input-block">
+      <label for="spotify_genre_filter">Genre filter for YouTube→Spotify freetext matches</label><br />
+      <input id="spotify_genre_filter" name="spotify_genre_filter" value="{{ settings.spotify_genre_filter }}" placeholder="e.g. metal — leave blank to disable" />
+      <small class="muted-small">Only applies when a YouTube title has no "Artist - Title" separator. Ignored for direct Spotify links and structured searches.</small>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Bandcamp</h2>
+    <div class="input-block">
+      <label>
+        <input type="checkbox" name="bandcamp_enabled" value="true" {{ 'checked' if settings.bandcamp_enabled == 'true' }} />
+        Enable Bandcamp as a source
+      </label>
+    </div>
+
+    <p>Genre tags — check to include in each sync run.</p>
+
+    {# Hidden field so the backend knows the full configured tag list #}
+    <input type="hidden" name="bc_tag_list" value="{{ settings.bandcamp_tags }}" />
+
+    {% for tag in settings.bandcamp_tag_list %}
+    <div class="input-block" style="display:flex; align-items:center; gap:0.6rem;">
+      <input type="checkbox" name="bc_enabled" value="{{ tag }}"
+             {{ 'checked' if tag in settings.bandcamp_enabled_set }} />
+      <span>{{ tag }}</span>
+    </div>
+    {% else %}
+    <p class="muted-small">No tags configured yet.</p>
+    {% endfor %}
+
+    <div class="input-block" style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+      <input name="new_bc_tag" placeholder="add-a-tag (e.g. melodic-black-metal)" style="flex:1" />
+      <small class="muted-small" style="align-self:center;">Saves with the form below</small>
+    </div>
+  </div>
+
+  <button type="submit">Save Settings</button>
+
+</form>
+{% endblock %}

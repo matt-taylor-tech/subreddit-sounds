@@ -1,6 +1,7 @@
 import secrets
 import time
 from datetime import datetime
+from typing import List
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
@@ -120,3 +121,86 @@ def spotify_callback(
         raise HTTPException(status_code=400, detail=f"Spotify denied access: {error}")
     spotify_service.exchange_code(code, settings_service.get("spotify_redirect_uri"))
     return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ---------------------------------------------------------------------------
+# Settings
+# ---------------------------------------------------------------------------
+
+def _settings_context() -> dict:
+    """Build the template context dict from current DB settings."""
+    all_tags_str = settings_service.get("bandcamp_tags", settings_service.get("bandcamp_tag", ""))
+    tag_list = [t.strip() for t in all_tags_str.split(",") if t.strip()]
+    enabled_str = settings_service.get("bandcamp_enabled_tags", all_tags_str)
+    enabled_set = {t.strip() for t in enabled_str.split(",") if t.strip()}
+    return {
+        "reddit_subreddit": settings_service.get("reddit_subreddit", "MelodicDeathMetal"),
+        "reddit_sort": settings_service.get("reddit_sort", "top"),
+        "reddit_timeframe": settings_service.get("reddit_timeframe", "week"),
+        "sync_cap": settings_service.get("sync_cap", "25"),
+        "sync_timezone": settings_service.get("sync_timezone", "America/New_York"),
+        "sync_hour": settings_service.get("sync_hour", "7"),
+        "sync_minute": settings_service.get("sync_minute", "0"),
+        "spotify_genre_filter": settings_service.get("spotify_genre_filter", ""),
+        "bandcamp_enabled": settings_service.get("bandcamp_enabled", "false"),
+        "bandcamp_tags": all_tags_str,
+        "bandcamp_tag_list": tag_list,
+        "bandcamp_enabled_set": enabled_set,
+    }
+
+
+@router.get("/admin/settings")
+def settings_page(request: Request):
+    require_auth(request)
+    return templates.TemplateResponse(
+        "settings.html",
+        {"request": request, "settings": _settings_context(), "saved": False},
+    )
+
+
+@router.post("/admin/settings")
+def settings_save(
+    request: Request,
+    reddit_subreddit: str = Form(...),
+    reddit_sort: str = Form("top"),
+    reddit_timeframe: str = Form("week"),
+    sync_cap: int = Form(25),
+    sync_timezone: str = Form("America/New_York"),
+    sync_hour: int = Form(7),
+    sync_minute: int = Form(0),
+    spotify_genre_filter: str = Form(""),
+    bandcamp_enabled: str = Form("false"),
+    bc_tag_list: str = Form(""),
+    bc_enabled: List[str] = Form(default=[]),
+    new_bc_tag: str = Form(""),
+):
+    require_auth(request)
+
+    # Build the full tag list: existing + any newly added
+    existing = [t.strip() for t in bc_tag_list.split(",") if t.strip()]
+    if new_bc_tag.strip():
+        existing.append(new_bc_tag.strip())
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    all_tags = [t for t in existing if not (t in seen or seen.add(t))]  # type: ignore[func-returns-value]
+
+    settings_service.put_many({
+        "reddit_subreddit": reddit_subreddit.strip(),
+        "reddit_sort": reddit_sort,
+        "reddit_timeframe": reddit_timeframe,
+        "sync_cap": str(sync_cap),
+        "sync_timezone": sync_timezone.strip(),
+        "sync_hour": str(sync_hour),
+        "sync_minute": str(sync_minute),
+        "spotify_genre_filter": spotify_genre_filter.strip(),
+        "bandcamp_enabled": "true" if bandcamp_enabled == "true" else "false",
+        "bandcamp_tags": ",".join(all_tags),
+        "bandcamp_enabled_tags": ",".join(bc_enabled),
+    })
+
+    request.app.state.scheduler_manager.reschedule()
+
+    return templates.TemplateResponse(
+        "settings.html",
+        {"request": request, "settings": _settings_context(), "saved": True},
+    )

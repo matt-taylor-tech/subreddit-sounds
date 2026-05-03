@@ -33,6 +33,9 @@ def setup_submit(
     sync_timezone: str = Form("America/New_York"),
     sync_hour: int = Form(7),
     sync_minute: int = Form(0),
+    spotify_genre_filter: str = Form(""),
+    bandcamp_enabled: str = Form("false"),
+    bandcamp_tag: str = Form("melodic-death-metal"),
 ):
     if settings_service.is_setup_complete():
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
@@ -60,6 +63,9 @@ def setup_submit(
         "sync_hour": str(sync_hour),
         "sync_minute": str(sync_minute),
         "sync_enabled": "true",
+        "spotify_genre_filter": spotify_genre_filter.strip(),
+        "bandcamp_enabled": "true" if bandcamp_enabled == "true" else "false",
+        "bandcamp_tag": bandcamp_tag.strip() or "melodic-death-metal",
     })
 
     # Start the daily scheduler now that credentials are available.

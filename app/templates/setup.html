@@ -72,6 +72,11 @@
     </div>
 
     <h2>Sync Settings</h2>
+    <div class="input-block">
+      <label for="spotify_genre_filter">Genre filter for YouTube→Spotify matches (optional)</label><br />
+      <input id="spotify_genre_filter" name="spotify_genre_filter" value="metal" placeholder="e.g. metal, rock, jazz — leave blank to disable" />
+      <small class="muted-small">Appended as <code>genre:&lt;value&gt;</code> to Spotify searches resolved from YouTube links. Ignored for direct Spotify links.</small>
+    </div>
     <div class="row">
       <div class="input-block flex-1">
         <label for="sync_cap">Max songs in playlist</label><br />
@@ -91,6 +96,20 @@
         <label for="sync_minute">Run minute (0–59)</label><br />
         <input id="sync_minute" name="sync_minute" type="number" min="0" max="59" value="0" required />
       </div>
+    </div>
+
+    <h2>Bandcamp New Releases (optional)</h2>
+    <p>Supplements Reddit with freshly released tracks from a Bandcamp tag page.</p>
+    <div class="input-block">
+      <label>
+        <input type="checkbox" name="bandcamp_enabled" value="true" />
+        Enable Bandcamp source
+      </label>
+    </div>
+    <div class="input-block">
+      <label for="bandcamp_tag">Bandcamp tag</label><br />
+      <input id="bandcamp_tag" name="bandcamp_tag" value="melodic-death-metal" />
+      <small class="muted-small">The tag slug from <code>bandcamp.com/tag/&lt;tag&gt;</code>.</small>
     </div>
 
     <div class="mt-sm">
