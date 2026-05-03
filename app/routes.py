@@ -60,6 +60,19 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     require_auth(request)
     latest_run = db.query(Run).order_by(desc(Run.id)).first()
     next_run = request.app.state.scheduler_manager.next_run() if request.app.state.scheduler_manager else None
+
+    playlist_name = None
+    playlist_tracks = []
+    playlist_id = settings_service.get("spotify_playlist_id")
+    if spotify_service.is_connected() and playlist_id:
+        try:
+            playlist_name = spotify_service.get_playlist_name(playlist_id)
+            track_ids = spotify_service.get_playlist_track_ids(playlist_id)
+            info = spotify_service.get_tracks_info(track_ids)
+            playlist_tracks = [info.get(tid, tid) for tid in track_ids]
+        except Exception:
+            pass
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -69,6 +82,9 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
             "sync_timezone": settings_service.get("sync_timezone"),
             "sync_time": f"{int(settings_service.get('sync_hour')):02d}:{int(settings_service.get('sync_minute')):02d}",
             "spotify_connected": spotify_service.is_connected(),
+            "playlist_name": playlist_name,
+            "playlist_tracks": playlist_tracks,
+            "playlist_id": playlist_id,
         },
     )
 

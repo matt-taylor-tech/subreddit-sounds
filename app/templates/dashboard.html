@@ -28,6 +28,38 @@
   </div>
 </div>
 
+{% if playlist_tracks %}
+<div class="card">
+  <h2>
+    Current Playlist
+    {% if playlist_name %}— {{ playlist_name }}{% endif %}
+    <span style="font-weight:400; font-size:0.9rem; color:var(--muted);">({{ playlist_tracks|length }} tracks)</span>
+    {% if playlist_id %}
+    <a href="https://open.spotify.com/playlist/{{ playlist_id }}" target="_blank" rel="noopener"
+       style="font-size:0.85rem; font-weight:400; margin-left:0.5rem;">Open in Spotify ↗</a>
+    {% endif %}
+  </h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Artist — Title</th></tr>
+    </thead>
+    <tbody>
+      {% for track in playlist_tracks %}
+      <tr>
+        <td style="color:var(--muted); width:2.5rem;">{{ loop.index }}</td>
+        <td>{{ track }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif spotify_connected and playlist_id %}
+<div class="card">
+  <h2>Current Playlist</h2>
+  <p>Playlist is empty — run a sync to populate it.</p>
+</div>
+{% endif %}
+
 <div class="card">
   <h2>Manual Run</h2>
   <form action="/admin/run" method="post">

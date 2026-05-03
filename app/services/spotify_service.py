@@ -67,6 +67,19 @@ def exchange_code(code: str, redirect_uri: str) -> None:
     })
 
 
+def get_playlist_name(playlist_id: str) -> str:
+    """Return the playlist's display name."""
+    token = get_access_token()
+    with httpx.Client() as client:
+        r = client.get(
+            f"{_API}/playlists/{playlist_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"fields": "name"},
+        )
+        r.raise_for_status()
+    return r.json().get("name", playlist_id)
+
+
 def get_playlist_track_ids(playlist_id: str) -> list[str]:
     token = get_access_token()
     track_ids: list[str] = []
