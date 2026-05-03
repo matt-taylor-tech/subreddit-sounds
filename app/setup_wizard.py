@@ -28,7 +28,7 @@ def setup_submit(
     spotify_client_id: str = Form(...),
     spotify_client_secret: str = Form(...),
     spotify_playlist_id: str = Form(...),
-    spotify_redirect_uri: str = Form("http://localhost:8000/callback"),
+    spotify_redirect_uri: str = Form("http://127.0.0.1:8000/callback"),
     sync_cap: int = Form(25),
     sync_timezone: str = Form("America/New_York"),
     sync_hour: int = Form(7),

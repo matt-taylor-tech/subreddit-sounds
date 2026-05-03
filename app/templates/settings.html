@@ -61,7 +61,34 @@
   </div>
 
   <div class="card">
-    <h2>Spotify</h2>
+    <h2>Spotify API</h2>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="spotify_client_id">Client ID</label><br />
+        <input id="spotify_client_id" name="spotify_client_id" value="{{ settings.spotify_client_id }}" required />
+      </div>
+      <div class="input-block flex-1">
+        <label for="spotify_client_secret">Client Secret</label><br />
+        <input id="spotify_client_secret" name="spotify_client_secret" value="{{ settings.spotify_client_secret }}" />
+        <small class="muted-small">Leave blank to keep the existing secret.</small>
+      </div>
+    </div>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="spotify_playlist_id">Playlist ID</label><br />
+        <input id="spotify_playlist_id" name="spotify_playlist_id" value="{{ settings.spotify_playlist_id }}" required />
+      </div>
+      <div class="input-block flex-1">
+        <label for="spotify_redirect_uri">Redirect URI</label><br />
+        <input id="spotify_redirect_uri" name="spotify_redirect_uri" value="{{ settings.spotify_redirect_uri }}" required />
+        <small class="muted-small">Must match exactly what's set in the Spotify app dashboard. After changing, re-authorize below.</small>
+      </div>
+    </div>
+    {% if settings.spotify_connected %}
+    <p style="color: var(--accent);">&#10003; Connected — <a href="/spotify/authorize">Re-authorize</a></p>
+    {% else %}
+    <p style="color: #fca5a5;">&#10007; Not connected — save settings first, then <a href="/spotify/authorize">authorize here</a>.</p>
+    {% endif %}
     <div class="input-block">
       <label for="spotify_genre_filter">Genre filter for YouTube→Spotify freetext matches</label><br />
       <input id="spotify_genre_filter" name="spotify_genre_filter" value="{{ settings.spotify_genre_filter }}" placeholder="e.g. metal — leave blank to disable" />

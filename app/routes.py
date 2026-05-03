@@ -134,6 +134,12 @@ def _settings_context() -> dict:
     enabled_str = settings_service.get("bandcamp_enabled_tags", all_tags_str)
     enabled_set = {t.strip() for t in enabled_str.split(",") if t.strip()}
     return {
+        "spotify_client_id": settings_service.get("spotify_client_id", ""),
+        "spotify_client_secret": settings_service.get("spotify_client_secret", ""),
+        "spotify_playlist_id": settings_service.get("spotify_playlist_id", ""),
+        "spotify_redirect_uri": settings_service.get("spotify_redirect_uri", ""),
+        "spotify_connected": spotify_service.is_connected(),
+        "spotify_genre_filter": settings_service.get("spotify_genre_filter", ""),
         "reddit_subreddit": settings_service.get("reddit_subreddit", "MelodicDeathMetal"),
         "reddit_sort": settings_service.get("reddit_sort", "top"),
         "reddit_timeframe": settings_service.get("reddit_timeframe", "week"),
@@ -141,7 +147,6 @@ def _settings_context() -> dict:
         "sync_timezone": settings_service.get("sync_timezone", "America/New_York"),
         "sync_hour": settings_service.get("sync_hour", "7"),
         "sync_minute": settings_service.get("sync_minute", "0"),
-        "spotify_genre_filter": settings_service.get("spotify_genre_filter", ""),
         "bandcamp_enabled": settings_service.get("bandcamp_enabled", "false"),
         "bandcamp_tags": all_tags_str,
         "bandcamp_tag_list": tag_list,
@@ -161,6 +166,11 @@ def settings_page(request: Request):
 @router.post("/admin/settings")
 def settings_save(
     request: Request,
+    spotify_client_id: str = Form(...),
+    spotify_client_secret: str = Form(""),
+    spotify_playlist_id: str = Form(...),
+    spotify_redirect_uri: str = Form(...),
+    spotify_genre_filter: str = Form(""),
     reddit_subreddit: str = Form(...),
     reddit_sort: str = Form("top"),
     reddit_timeframe: str = Form("week"),
@@ -168,7 +178,6 @@ def settings_save(
     sync_timezone: str = Form("America/New_York"),
     sync_hour: int = Form(7),
     sync_minute: int = Form(0),
-    spotify_genre_filter: str = Form(""),
     bandcamp_enabled: str = Form("false"),
     bc_tag_list: str = Form(""),
     bc_enabled: List[str] = Form(default=[]),
@@ -180,11 +189,14 @@ def settings_save(
     existing = [t.strip() for t in bc_tag_list.split(",") if t.strip()]
     if new_bc_tag.strip():
         existing.append(new_bc_tag.strip())
-    # Deduplicate while preserving order
     seen: set[str] = set()
     all_tags = [t for t in existing if not (t in seen or seen.add(t))]  # type: ignore[func-returns-value]
 
-    settings_service.put_many({
+    updates = {
+        "spotify_client_id": spotify_client_id.strip(),
+        "spotify_playlist_id": spotify_playlist_id.strip(),
+        "spotify_redirect_uri": spotify_redirect_uri.strip(),
+        "spotify_genre_filter": spotify_genre_filter.strip(),
         "reddit_subreddit": reddit_subreddit.strip(),
         "reddit_sort": reddit_sort,
         "reddit_timeframe": reddit_timeframe,
@@ -192,11 +204,15 @@ def settings_save(
         "sync_timezone": sync_timezone.strip(),
         "sync_hour": str(sync_hour),
         "sync_minute": str(sync_minute),
-        "spotify_genre_filter": spotify_genre_filter.strip(),
         "bandcamp_enabled": "true" if bandcamp_enabled == "true" else "false",
         "bandcamp_tags": ",".join(all_tags),
         "bandcamp_enabled_tags": ",".join(bc_enabled),
-    })
+    }
+    # Only overwrite the secret if a new one was provided
+    if spotify_client_secret.strip():
+        updates["spotify_client_secret"] = spotify_client_secret.strip()
+
+    settings_service.put_many(updates)
 
     request.app.state.scheduler_manager.reschedule()
 

@@ -25,7 +25,7 @@ DEFAULTS: dict[str, str] = {
     "reddit_sort": "top",
     "reddit_timeframe": "week",
     "sync_enabled": "true",
-    "spotify_redirect_uri": "http://localhost:8000/callback",
+    "spotify_redirect_uri": "http://127.0.0.1:8000/callback",
 }
 
 _SECRET_KEYS = {
