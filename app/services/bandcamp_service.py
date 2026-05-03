@@ -1,53 +1,52 @@
-import json
-import re
-
 import httpx
 
-_TAG_URL = "https://bandcamp.com/tag/{tag}"
-_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; listige-bot/1.0)"}
-
-# Bandcamp embeds initial hub data as a JS variable in the tag page HTML.
-_BLOB_RE = re.compile(r"var\s+blob\s*=\s*(\{.+?\});\s*</script>", re.DOTALL)
+_DISCOVER_URL = "https://bandcamp.com/api/discover/1/discover_web"
+_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Origin": "https://bandcamp.com",
+    "Referer": "https://bandcamp.com/discover/",
+    "X-Requested-With": "XMLHttpRequest",
+    "Content-Type": "application/json",
+}
 
 
 def fetch_new_tracks(tag: str, limit: int = 30) -> list[dict]:
-    """Fetch recently released tracks for a Bandcamp tag.
+    """Fetch recently released albums for a Bandcamp tag via the discover API.
 
-    Returns a list of {"artist": ..., "title": ...} dicts (tracks only, not albums).
-    Raises RuntimeError with a descriptive message if the page structure is unexpected.
+    Returns a list of {"artist": ..., "title": ...} dicts where title is the
+    album's featured track (the one Bandcamp highlights), suitable for Spotify search.
+    Raises RuntimeError on unexpected API responses.
     """
-    url = _TAG_URL.format(tag=tag)
-    with httpx.Client(follow_redirects=True, timeout=15) as client:
-        r = client.get(url, headers=_HEADERS, params={"sort_field": "date"})
+    payload = {
+        "category_id": 0,
+        "cursor": "*",
+        "geoname_id": 0,
+        "include_result_types": ["a", "s"],
+        "size": 50,
+        "slice": "new",
+        "tag_norm_names": [tag],
+        "time_facet_id": None,
+    }
+
+    with httpx.Client(timeout=15) as client:
+        r = client.post(_DISCOVER_URL, headers=_HEADERS, json=payload)
         r.raise_for_status()
 
-    match = _BLOB_RE.search(r.text)
-    if not match:
+    data = r.json()
+
+    if "results" not in data:
         raise RuntimeError(
-            f"Could not locate embedded JSON blob on Bandcamp tag page ({url}). "
-            "The page structure may have changed."
+            f"Unexpected Bandcamp discover API response (keys: {list(data.keys())})"
         )
 
-    data = json.loads(match.group(1))
-
-    try:
-        tabs = data["hub"]["tabs"]
-    except (KeyError, TypeError) as exc:
-        keys = list(data.keys()) if isinstance(data, dict) else type(data).__name__
-        raise RuntimeError(
-            f"Unexpected Bandcamp blob structure (top-level keys: {keys}): {exc}"
-        ) from exc
-
-    items: list[dict] = []
-    for tab in tabs:
-        items.extend(tab.get("items", []))
-
-    tracks = [
-        {"artist": item["artist"], "title": item["title"]}
-        for item in items
-        if item.get("item_type") == "t"
-        and item.get("artist")
-        and item.get("title")
-    ]
+    tracks = []
+    for item in data["results"]:
+        if item.get("result_type") != "a":
+            continue
+        artist = item.get("band_name", "").strip()
+        featured = item.get("featured_track") or {}
+        track_title = featured.get("title", "").strip()
+        if artist and track_title:
+            tracks.append({"artist": artist, "title": track_title})
 
     return tracks[:limit]
