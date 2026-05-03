@@ -15,9 +15,9 @@ class SchedulerManager:
 
     def start(self) -> None:
         """Schedule the daily job if setup has been completed."""
+        if not self.scheduler.running:
+            self.scheduler.start()
         if not settings_service.is_setup_complete():
-            if not self.scheduler.running:
-                self.scheduler.start()
             return
         self._apply_schedule()
 

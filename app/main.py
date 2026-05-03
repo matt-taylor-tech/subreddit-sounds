@@ -7,7 +7,7 @@ from starlette.requests import Request as StarletteRequest
 from starlette.responses import RedirectResponse
 
 from app.config import settings
-from app.db import Base, engine
+from app.db import Base, engine, run_migrations
 from app.routes import router
 from app.scheduler import SchedulerManager
 from app.services.sync_service import SyncService
@@ -32,6 +32,7 @@ class SetupRedirectMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    run_migrations()
 
     app.state.sync_service = SyncService()
     app.state.scheduler_manager = SchedulerManager(app.state.sync_service)

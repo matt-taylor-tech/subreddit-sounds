@@ -19,6 +19,7 @@ class Run(Base):
     removed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     low_confidence_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    log: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class AppSetting(Base):

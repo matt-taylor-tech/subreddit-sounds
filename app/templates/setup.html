@@ -24,19 +24,31 @@
       <input id="admin_password_confirm" type="password" name="admin_password_confirm" required />
     </div>
 
-    <h2>Reddit API</h2>
-    <p>Create an app at <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener">reddit.com/prefs/apps</a> — choose <em>script</em> type.</p>
-    <div class="input-block">
-      <label for="reddit_client_id">Client ID</label><br />
-      <input id="reddit_client_id" name="reddit_client_id" required />
-    </div>
-    <div class="input-block">
-      <label for="reddit_client_secret">Client Secret</label><br />
-      <input id="reddit_client_secret" name="reddit_client_secret" required />
-    </div>
+    <h2>Reddit</h2>
+    <p>Posts are fetched from Reddit's public JSON feed — no API key required.</p>
     <div class="input-block">
       <label for="reddit_subreddit">Subreddit (without r/)</label><br />
       <input id="reddit_subreddit" name="reddit_subreddit" value="MelodicDeathMetal" required />
+    </div>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="reddit_sort">Sort</label><br />
+        <select id="reddit_sort" name="reddit_sort">
+          <option value="top" selected>top</option>
+          <option value="hot">hot</option>
+          <option value="new">new</option>
+        </select>
+      </div>
+      <div class="input-block flex-1">
+        <label for="reddit_timeframe">Timeframe (top only)</label><br />
+        <select id="reddit_timeframe" name="reddit_timeframe">
+          <option value="day">day</option>
+          <option value="week" selected>week</option>
+          <option value="month">month</option>
+          <option value="year">year</option>
+          <option value="all">all time</option>
+        </select>
+      </div>
     </div>
 
     <h2>Spotify API</h2>

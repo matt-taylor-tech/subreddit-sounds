@@ -22,18 +22,20 @@ DEFAULTS: dict[str, str] = {
     "sync_timezone": "America/New_York",
     "reddit_user_agent": "listige-clone/0.1",
     "reddit_subreddit": "MelodicDeathMetal",
+    "reddit_sort": "top",
+    "reddit_timeframe": "week",
     "sync_enabled": "true",
     "spotify_redirect_uri": "http://localhost:8000/callback",
 }
 
 _SECRET_KEYS = {
     "admin_password_hash",
-    "reddit_client_id",
-    "reddit_client_secret",
     "spotify_client_id",
     "spotify_client_secret",
     "spotify_redirect_uri",
     "spotify_playlist_id",
+    "spotify_access_token",
+    "spotify_refresh_token",
 }
 
 

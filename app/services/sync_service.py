@@ -1,9 +1,97 @@
 from datetime import datetime
 from threading import Lock
+from typing import Callable
 
+import httpx
 from sqlalchemy.orm import Session
 
 from app.models import Run
+from app.services import settings_service, spotify_service
+from app.services.link_resolver import (
+    classify_url,
+    clean_youtube_title,
+    extract_spotify_track_id,
+    extract_youtube_video_id,
+    is_full_album,
+)
+from app.services.reconcile import reconcile_latest_cap
+
+
+def _fetch_reddit_posts(
+    subreddit: str, user_agent: str, sort: str = "top", timeframe: str = "week", limit: int = 100
+) -> list[dict]:
+    url = f"https://www.reddit.com/r/{subreddit}/{sort}.json"
+    params: dict = {"limit": limit}
+    if sort == "top":
+        params["t"] = timeframe
+    with httpx.Client(follow_redirects=True, timeout=15) as client:
+        r = client.get(url, headers={"User-Agent": user_agent}, params=params)
+        r.raise_for_status()
+    return r.json()["data"]["children"]
+
+
+def _youtube_title(video_id: str) -> str | None:
+    """Fetch the video title via YouTube's free oEmbed endpoint (no API key needed)."""
+    url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+    try:
+        with httpx.Client(timeout=10) as client:
+            r = client.get(url)
+            if r.status_code == 200:
+                return r.json().get("title")
+    except Exception:
+        pass
+    return None
+
+
+def _collect_tracks(
+    posts: list[dict],
+    log: Callable[[str], None],
+) -> tuple[list[str], int]:
+    """
+    Resolve each post URL to a Spotify track ID.
+
+    Returns (track_ids_in_order, low_confidence_count).
+    Direct Spotify links are high-confidence; YouTube-resolved tracks are low-confidence.
+    """
+    seen: set[str] = set()
+    track_ids: list[str] = []
+    low_confidence = 0
+
+    for post in posts:
+        data = post["data"]
+        url = data.get("url", "")
+        title = data.get("title", "(no title)")
+        kind = classify_url(url)
+
+        if kind == "spotify":
+            track_id = extract_spotify_track_id(url)
+            if track_id and track_id not in seen:
+                seen.add(track_id)
+                track_ids.append(track_id)
+                log(f"  [spotify] {track_id}  —  {title[:70]}")
+
+        elif kind == "youtube":
+            video_id = extract_youtube_video_id(url)
+            if not video_id:
+                continue
+            yt_title = _youtube_title(video_id)
+            if not yt_title:
+                log(f"  [youtube] skipped (could not fetch title)  —  {title[:70]}")
+                continue
+            if is_full_album(yt_title):
+                log(f"  [youtube] skipped (full album)  —  {yt_title[:70]}")
+                continue
+            query = clean_youtube_title(yt_title)
+            track_id = spotify_service.search_track(query)
+            if track_id and track_id not in seen:
+                seen.add(track_id)
+                track_ids.append(track_id)
+                low_confidence += 1
+                log(f"  [youtube→spotify] {track_id}  —  {yt_title[:70]}")
+            elif not track_id:
+                log(f"  [youtube] no Spotify match for: {yt_title[:70]}")
+
+    return track_ids, low_confidence
 
 
 class SyncService:
@@ -19,17 +107,85 @@ class SyncService:
         db.commit()
         db.refresh(run)
 
+        lines: list[str] = []
+
+        def log(msg: str) -> None:
+            lines.append(msg)
+
         try:
-            # Initial implementation stub: API integrations are wired in next iterations.
-            run.added_count = 0
-            run.removed_count = 0
-            run.low_confidence_count = 0
-            run.message = "Sync scaffold executed successfully"
+            subreddit = settings_service.get("reddit_subreddit", "MelodicDeathMetal")
+            user_agent = settings_service.get("reddit_user_agent", "listige-clone/0.1")
+            sort = settings_service.get("reddit_sort", "top")
+            timeframe = settings_service.get("reddit_timeframe", "week")
+            sync_cap = int(settings_service.get("sync_cap", "25"))
+            playlist_id = settings_service.get("spotify_playlist_id")
+
+            # --- Reddit ---
+            label = f"{sort}/{timeframe}" if sort == "top" else sort
+            log(f"Fetching r/{subreddit} [{label}] (limit=100)")
+            posts = _fetch_reddit_posts(subreddit, user_agent, sort, timeframe)
+            log(f"Fetched {len(posts)} posts — resolving links...")
+
+            if not spotify_service.is_connected():
+                log("Spotify not connected — visit the dashboard to authorise")
+                run.status = "failed"
+                run.message = "Spotify not connected"
+                run.log = "\n".join(lines)
+                run.ended_at = datetime.utcnow()
+                db.add(run)
+                db.commit()
+                return run.id
+
+            new_track_ids, low_conf = _collect_tracks(posts, log)
+            log(f"Resolved {len(new_track_ids)} unique track(s) ({low_conf} via YouTube title search)")
+
+            # --- Spotify read ---
+            log(f"Reading current playlist ({playlist_id})")
+            current_ids = spotify_service.get_playlist_track_ids(playlist_id)
+            log(f"Playlist currently has {len(current_ids)} track(s)")
+
+            # --- Reconcile ---
+            desired_ids = reconcile_latest_cap(current_ids, new_track_ids, sync_cap)
+            current_set = set(current_ids)
+            desired_set = set(desired_ids)
+
+            to_add = [tid for tid in desired_ids if tid not in current_set]
+            to_remove = [tid for tid in current_ids if tid not in desired_set]
+
+            log(f"Tracks to add: {len(to_add)}, to remove: {len(to_remove)}")
+            for tid in to_add:
+                log(f"  + {tid}")
+            for tid in to_remove:
+                log(f"  - {tid}")
+
+            # --- Spotify write ---
+            if dry_run:
+                log("Dry run — no changes written to Spotify")
+            else:
+                if to_add:
+                    spotify_service.add_tracks(playlist_id, to_add)
+                    log(f"Added {len(to_add)} track(s)")
+                if to_remove:
+                    spotify_service.remove_tracks(playlist_id, to_remove)
+                    log(f"Removed {len(to_remove)} track(s)")
+                if not to_add and not to_remove:
+                    log("Playlist already up to date — no changes needed")
+
+            run.added_count = len(to_add) if not dry_run else 0
+            run.removed_count = len(to_remove) if not dry_run else 0
+            run.low_confidence_count = low_conf
+            run.message = (
+                f"{'[dry] ' if dry_run else ''}+{len(to_add)} -{len(to_remove)} "
+                f"(resolved {len(new_track_ids)} tracks, {low_conf} via YouTube)"
+            )
             run.status = "success"
-        except Exception as exc:  # noqa: BLE001
+
+        except Exception as exc:
+            log(f"ERROR: {type(exc).__name__}: {exc}")
             run.status = "failed"
             run.message = f"{type(exc).__name__}: {exc}"
         finally:
+            run.log = "\n".join(lines)
             run.ended_at = datetime.utcnow()
             db.add(run)
             db.commit()

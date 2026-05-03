@@ -3,16 +3,25 @@
 <h1>Dashboard</h1>
 <div class="row">
   <div class="card">
+    <h2>Spotify</h2>
+    {% if spotify_connected %}
+      <p style="color:#4caf50;">&#10003; Connected</p>
+    {% else %}
+      <p style="color:#e57373;">&#10007; Not connected</p>
+      <a href="/spotify/authorize"><button>Connect Spotify</button></a>
+    {% endif %}
+  </div>
+  <div class="card">
     <h2>Schedule</h2>
     <p>Daily run at {{ sync_time }} {{ sync_timezone }}</p>
-    <p>Next run: {{ next_run if next_run else "Not scheduled" }}</p>
+    <p>Next run: {{ next_run.strftime("%Y-%m-%d %H:%M") if next_run else "Not scheduled" }}</p>
   </div>
   <div class="card">
     <h2>Latest Run</h2>
     {% if latest_run %}
       <p>Status: {{ latest_run.status }}</p>
-      <p>Started: {{ latest_run.started_at }}</p>
-      <p>Message: {{ latest_run.message or "-" }}</p>
+      <p>Started: {{ latest_run.started_at.strftime("%Y-%m-%d %H:%M:%S") }}</p>
+      <p>{{ latest_run.message or "-" }}</p>
     {% else %}
       <p>No runs yet.</p>
     {% endif %}
@@ -24,7 +33,7 @@
   <form action="/admin/run" method="post">
     <label>
       <input type="checkbox" name="dry_run" value="true" />
-      Dry run (no Spotify write)
+      Dry run (fetch Reddit + show what would change, no Spotify write)
     </label>
     <div class="mt-sm">
       <button type="submit">Run Now</button>
