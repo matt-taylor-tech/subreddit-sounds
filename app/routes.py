@@ -90,10 +90,10 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/admin/runs")
-def runs(request: Request, db: Session = Depends(get_db)):
+def runs(request: Request, db: Session = Depends(get_db), run_id: int | None = None):
     require_auth(request)
     run_items = db.query(Run).order_by(desc(Run.id)).limit(100).all()
-    return templates.TemplateResponse("runs.html", {"request": request, "runs": run_items})
+    return templates.TemplateResponse("runs.html", {"request": request, "runs": run_items, "highlight_run_id": run_id})
 
 
 @router.post("/admin/run")

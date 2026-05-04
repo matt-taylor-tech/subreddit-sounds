@@ -1,6 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Run History</h1>
+
+<div class="card">
+  <h2>Manual Run</h2>
+  <form action="/admin/run" method="post">
+    <label>
+      <input type="checkbox" name="dry_run" value="true" />
+      Dry run (fetch Reddit + show what would change, no Spotify write)
+    </label>
+    <div class="mt-sm">
+      <button type="submit">Run Now</button>
+    </div>
+  </form>
+</div>
+
 <div class="card">
   <table>
     <thead>
@@ -18,7 +32,7 @@
     </thead>
     <tbody>
       {% for run in runs %}
-      <tr>
+      <tr{% if highlight_run_id and run.id == highlight_run_id %} style="background:var(--card-highlight, #2a3a2a);"{% endif %}>
         <td>{{ run.id }}</td>
         <td>{{ run.status }}</td>
         <td>{{ run.trigger_type }}</td>

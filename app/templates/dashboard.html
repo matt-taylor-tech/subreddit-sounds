@@ -60,16 +60,4 @@
 </div>
 {% endif %}
 
-<div class="card">
-  <h2>Manual Run</h2>
-  <form action="/admin/run" method="post">
-    <label>
-      <input type="checkbox" name="dry_run" value="true" />
-      Dry run (fetch Reddit + show what would change, no Spotify write)
-    </label>
-    <div class="mt-sm">
-      <button type="submit">Run Now</button>
-    </div>
-  </form>
-</div>
 {% endblock %}

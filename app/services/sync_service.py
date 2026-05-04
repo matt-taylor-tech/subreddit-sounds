@@ -176,11 +176,12 @@ class SyncService:
                     # fall back to legacy single-tag setting
                     enabled_tags_raw = settings_service.get("bandcamp_tag", "melodic-death-metal")
                 enabled_tags = [t.strip() for t in enabled_tags_raw.split(",") if t.strip()]
+                bandcamp_seen = set(new_track_ids)
                 for tag in enabled_tags:
                     log(f"Fetching Bandcamp new releases for tag '{tag}'...")
                     try:
                         bc_ids, bc_count = _collect_bandcamp_tracks(
-                            tag, log, seen=set(new_track_ids), min_duration_ms=min_duration_ms
+                            tag, log, seen=bandcamp_seen, min_duration_ms=min_duration_ms
                         )
                         new_track_ids = new_track_ids + bc_ids
                         log(f"Added {bc_count} track(s) from Bandcamp tag '{tag}'")
