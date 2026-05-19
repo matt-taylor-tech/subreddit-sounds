@@ -10,6 +10,8 @@ _API = "https://api.spotify.com/v1"
 SCOPES = "playlist-modify-public playlist-modify-private playlist-read-private"
 _TITLE_OVERLAP_WEIGHT = 3
 _ARTIST_OVERLAP_WEIGHT = 4
+_POPULARITY_WEIGHT = 0.01
+_MAX_SEARCH_CANDIDATES = 10
 
 
 def is_connected() -> bool:
@@ -140,7 +142,7 @@ def search_track(
         r = client.get(
             f"{_API}/search",
             headers={"Authorization": f"Bearer {token}"},
-            params={"q": q, "type": "track", "limit": 10},
+            params={"q": q, "type": "track", "limit": _MAX_SEARCH_CANDIDATES},
         )
         r.raise_for_status()
         items = r.json().get("tracks", {}).get("items", [])
@@ -226,7 +228,7 @@ def _select_best_track(
                 continue
 
         score = title_overlap * _TITLE_OVERLAP_WEIGHT + artist_overlap * _ARTIST_OVERLAP_WEIGHT
-        score += track.get("popularity", 0) / 100.0
+        score += track.get("popularity", 0) * _POPULARITY_WEIGHT
         if score > best_score and track.get("id"):
             best_score = score
             best_id = track["id"]
