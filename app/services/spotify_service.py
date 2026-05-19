@@ -8,6 +8,8 @@ from app.services import settings_service
 _ACCOUNTS = "https://accounts.spotify.com"
 _API = "https://api.spotify.com/v1"
 SCOPES = "playlist-modify-public playlist-modify-private playlist-read-private"
+_TITLE_OVERLAP_WEIGHT = 3
+_ARTIST_OVERLAP_WEIGHT = 4
 
 
 def is_connected() -> bool:
@@ -156,7 +158,7 @@ def search_track(
                 ar = client.get(
                     f"{_API}/artists",
                     headers={"Authorization": f"Bearer {token}"},
-                    params={"ids": ",".join(sorted(aid for aid in artist_ids if aid))},
+                    params={"ids": ",".join(sorted(artist_ids))},
                 )
                 ar.raise_for_status()
             for row in ar.json().get("artists", []):
@@ -224,8 +226,8 @@ def _select_best_track(
             if known_genres and not _genre_matches(known_genres, wanted_genres):
                 continue
 
-        score = float(title_overlap * 3 + artist_overlap * 4)
-        score += (track.get("popularity", 0) or 0) / 100.0
+        score = float(title_overlap * _TITLE_OVERLAP_WEIGHT + artist_overlap * _ARTIST_OVERLAP_WEIGHT)
+        score += track.get("popularity", 0) / 100.0
         if score > best_score and track.get("id"):
             best_score = score
             best_id = track["id"]
