@@ -135,6 +135,7 @@ def search_track(
     else:
         q = f"{query} genre:{genre_filter}" if genre_filter else query
     token = get_access_token()
+    artist_genres_by_id: dict[str, list[str]] = {}
     with httpx.Client() as client:
         r = client.get(
             f"{_API}/search",
@@ -142,28 +143,26 @@ def search_track(
             params={"q": q, "type": "track", "limit": 10},
         )
         r.raise_for_status()
-    items = r.json().get("tracks", {}).get("items", [])
-    if not items:
-        return None
-    artist_genres_by_id: dict[str, list[str]] = {}
-    if genre_filter:
-        artist_ids = {
-            str(a.get("id"))
-            for track in items
-            for a in track.get("artists", [])
-            if isinstance(a, dict) and a.get("id")
-        }
-        if artist_ids:
-            with httpx.Client() as client:
+        items = r.json().get("tracks", {}).get("items", [])
+        if not items:
+            return None
+        if genre_filter:
+            artist_ids = {
+                str(a.get("id"))
+                for track in items
+                for a in track.get("artists", [])
+                if isinstance(a, dict) and a.get("id")
+            }
+            if artist_ids:
                 ar = client.get(
                     f"{_API}/artists",
                     headers={"Authorization": f"Bearer {token}"},
                     params={"ids": ",".join(sorted(artist_ids))},
                 )
                 ar.raise_for_status()
-            for row in ar.json().get("artists", []):
-                if row and row.get("id"):
-                    artist_genres_by_id[row["id"]] = row.get("genres", [])
+                for row in ar.json().get("artists", []):
+                    if row and row.get("id"):
+                        artist_genres_by_id[row["id"]] = row.get("genres", [])
     return _select_best_track(
         items,
         query=query,
@@ -226,7 +225,7 @@ def _select_best_track(
             if known_genres and not _genre_matches(known_genres, wanted_genres):
                 continue
 
-        score = float(title_overlap * _TITLE_OVERLAP_WEIGHT + artist_overlap * _ARTIST_OVERLAP_WEIGHT)
+        score = title_overlap * _TITLE_OVERLAP_WEIGHT + artist_overlap * _ARTIST_OVERLAP_WEIGHT
         score += track.get("popularity", 0) / 100.0
         if score > best_score and track.get("id"):
             best_score = score
