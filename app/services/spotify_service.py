@@ -1,4 +1,5 @@
 import time
+import re
 
 import httpx
 
@@ -7,6 +8,10 @@ from app.services import settings_service
 _ACCOUNTS = "https://accounts.spotify.com"
 _API = "https://api.spotify.com/v1"
 SCOPES = "playlist-modify-public playlist-modify-private playlist-read-private"
+_TITLE_OVERLAP_WEIGHT = 3
+_ARTIST_OVERLAP_WEIGHT = 4
+_POPULARITY_WEIGHT = 0.01
+_MAX_SEARCH_CANDIDATES = 10
 
 
 def is_connected() -> bool:
@@ -120,32 +125,115 @@ def search_track(
     genre_filter: str | None = None,
     min_duration_ms: int | None = None,
 ) -> str | None:
-    """Return the first Spotify track ID matching query, or None.
+    """Return the best Spotify track ID matching query, or None.
 
     When artist is provided, uses field-filtered search (artist:"X" track:"Y"),
-    which is far more precise than freetext. genre_filter is only applied for
-    freetext fallback (when artist is None). Tracks shorter than min_duration_ms
-    are treated as no match.
+    and ranks candidates by title/artist token overlap. When genre_filter is set,
+    candidates with known non-matching artist genres are rejected. Tracks shorter
+    than min_duration_ms are treated as no match.
     """
     if artist:
         q = f'artist:"{artist}" track:"{query}"'
     else:
         q = f"{query} genre:{genre_filter}" if genre_filter else query
     token = get_access_token()
+    artist_genres_by_id: dict[str, list[str]] = {}
     with httpx.Client() as client:
         r = client.get(
             f"{_API}/search",
             headers={"Authorization": f"Bearer {token}"},
-            params={"q": q, "type": "track", "limit": 1},
+            params={"q": q, "type": "track", "limit": _MAX_SEARCH_CANDIDATES},
         )
         r.raise_for_status()
-    items = r.json().get("tracks", {}).get("items", [])
-    if not items:
-        return None
-    track = items[0]
-    if min_duration_ms and track.get("duration_ms", 0) < min_duration_ms:
-        return None
-    return track["id"]
+        items = r.json().get("tracks", {}).get("items", [])
+        if not items:
+            return None
+        if genre_filter:
+            artist_ids = {
+                str(a.get("id"))
+                for track in items
+                for a in track.get("artists", [])
+                if isinstance(a, dict) and a.get("id")
+            }
+            if artist_ids:
+                ar = client.get(
+                    f"{_API}/artists",
+                    headers={"Authorization": f"Bearer {token}"},
+                    params={"ids": ",".join(sorted(artist_ids))},
+                )
+                ar.raise_for_status()
+                for row in ar.json().get("artists", []):
+                    if row and row.get("id"):
+                        artist_genres_by_id[row["id"]] = row.get("genres", [])
+    return _select_best_track(
+        items,
+        query=query,
+        artist=artist,
+        genre_filter=genre_filter,
+        artist_genres_by_id=artist_genres_by_id,
+        min_duration_ms=min_duration_ms,
+    )
+
+
+def _tokenize(value: str | None) -> set[str]:
+    if not value:
+        return set()
+    return {t for t in re.split(r"[^a-z0-9]+", value.lower()) if t}
+
+
+def _genre_terms(genre_filter: str | None) -> list[str]:
+    if not genre_filter:
+        return []
+    return [part.strip().lower() for part in genre_filter.split(",") if part.strip()]
+
+
+def _genre_matches(artist_genres: list[str], wanted_terms: list[str]) -> bool:
+    lowered = [g.lower() for g in artist_genres]
+    return any(term in genre for term in wanted_terms for genre in lowered)
+
+
+def _select_best_track(
+    items: list[dict],
+    query: str,
+    artist: str | None = None,
+    genre_filter: str | None = None,
+    artist_genres_by_id: dict[str, list[str]] | None = None,
+    min_duration_ms: int | None = None,
+) -> str | None:
+    query_tokens = _tokenize(query)
+    artist_tokens = _tokenize(artist)
+    wanted_genres = _genre_terms(genre_filter)
+    genres_by_id = artist_genres_by_id or {}
+    best_id: str | None = None
+    best_score = -1.0
+
+    for track in items:
+        if min_duration_ms and track.get("duration_ms", 0) < min_duration_ms:
+            continue
+        name_tokens = _tokenize(track.get("name", ""))
+        title_overlap = len(query_tokens & name_tokens)
+        if query_tokens and title_overlap == 0:
+            continue
+
+        artists = track.get("artists", [])
+        candidate_artist_tokens = _tokenize(" ".join(a.get("name", "") for a in artists if isinstance(a, dict)))
+        artist_overlap = len(artist_tokens & candidate_artist_tokens) if artist_tokens else 0
+        if artist_tokens and artist_overlap == 0:
+            continue
+
+        if wanted_genres and artists and isinstance(artists[0], dict):
+            primary_artist_id = artists[0].get("id")
+            known_genres = genres_by_id.get(primary_artist_id, []) if primary_artist_id else []
+            if known_genres and not _genre_matches(known_genres, wanted_genres):
+                continue
+
+        score = title_overlap * _TITLE_OVERLAP_WEIGHT + artist_overlap * _ARTIST_OVERLAP_WEIGHT
+        score += track.get("popularity", 0) * _POPULARITY_WEIGHT
+        if score > best_score and track.get("id"):
+            best_score = score
+            best_id = track["id"]
+
+    return best_id
 
 
 def get_tracks_info(track_ids: list[str]) -> dict[str, str]:

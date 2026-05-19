@@ -97,7 +97,7 @@
     <div class="input-block">
       <label for="spotify_genre_filter">Genre filter for YouTube→Spotify freetext matches</label><br />
       <input id="spotify_genre_filter" name="spotify_genre_filter" value="{{ settings.spotify_genre_filter }}" placeholder="e.g. metal — leave blank to disable" />
-      <small class="muted-small">Only applies when a YouTube title has no "Artist - Title" separator. Ignored for direct Spotify links and structured searches.</small>
+      <small class="muted-small">Used in freetext searches and to reject structured matches when Spotify artist genres are known and clearly outside this filter. Ignored for direct Spotify links.</small>
     </div>
   </div>
 
