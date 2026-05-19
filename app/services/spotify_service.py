@@ -146,7 +146,7 @@ def search_track(
     artist_genres_by_id: dict[str, list[str]] = {}
     if genre_filter:
         artist_ids = {
-            a.get("id")
+            str(a.get("id"))
             for track in items
             for a in track.get("artists", [])
             if isinstance(a, dict) and a.get("id")
@@ -156,7 +156,7 @@ def search_track(
                 ar = client.get(
                     f"{_API}/artists",
                     headers={"Authorization": f"Bearer {token}"},
-                    params={"ids": ",".join(sorted(artist_ids))},
+                    params={"ids": ",".join(sorted(aid for aid in artist_ids if aid))},
                 )
                 ar.raise_for_status()
             for row in ar.json().get("artists", []):
@@ -175,7 +175,7 @@ def search_track(
 def _tokenize(value: str | None) -> set[str]:
     if not value:
         return set()
-    return {t for t in re.split(r"[^a-z0-9]+", value.lower()) if len(t) > 1}
+    return {t for t in re.split(r"[^a-z0-9]+", value.lower()) if t}
 
 
 def _genre_terms(genre_filter: str | None) -> list[str]:
