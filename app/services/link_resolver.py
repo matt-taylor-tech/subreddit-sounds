@@ -76,3 +76,21 @@ def parse_youtube_title(title: str) -> tuple[str | None, str]:
 
 def is_full_album(title: str) -> bool:
     return bool(re.search(r"\bfull\s+album\b", title, re.IGNORECASE))
+
+
+def derive_artist_from_channel(channel: str | None) -> str | None:
+    """Best-effort artist hint from a YouTube channel name.
+
+    Recognises the "{Artist} - Topic" convention (YouTube's auto-generated
+    artist channels) and returns the cleaned name. Falls back to the raw
+    channel name so self-uploaded band videos still get an artist signal —
+    callers should treat the result as a hint, not a guarantee.
+    """
+    if not channel:
+        return None
+    channel = channel.strip()
+    if not channel:
+        return None
+    if channel.endswith(" - Topic"):
+        return channel[: -len(" - Topic")].strip() or None
+    return channel

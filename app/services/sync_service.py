@@ -10,6 +10,7 @@ from app.services import settings_service, spotify_service
 from app.services.link_resolver import (
     classify_url,
     clean_youtube_title,
+    derive_artist_from_channel,
     extract_spotify_track_id,
     extract_youtube_video_id,
     is_full_album,
@@ -32,17 +33,23 @@ def _fetch_reddit_posts(
     return r.json()["data"]["children"]
 
 
-def _youtube_title(video_id: str) -> str | None:
-    """Fetch the video title via YouTube's free oEmbed endpoint (no API key needed)."""
+def _youtube_meta(video_id: str) -> tuple[str | None, str | None]:
+    """Fetch (title, channel name) via YouTube's free oEmbed endpoint.
+
+    Channel name is required to resolve titles that omit the artist — without it
+    a freetext Spotify search for a bare song title can match any track with
+    that name, even from a completely unrelated genre.
+    """
     url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
     try:
         with httpx.Client(timeout=10) as client:
             r = client.get(url)
             if r.status_code == 200:
-                return r.json().get("title")
+                data = r.json()
+                return data.get("title"), data.get("author_name")
     except Exception:
         pass
-    return None
+    return None, None
 
 
 def _collect_tracks(
@@ -78,7 +85,7 @@ def _collect_tracks(
             video_id = extract_youtube_video_id(url)
             if not video_id:
                 continue
-            yt_title = _youtube_title(video_id)
+            yt_title, yt_channel = _youtube_meta(video_id)
             if not yt_title:
                 log(f"  [youtube] skipped (could not fetch title)  —  {title[:70]}")
                 continue
@@ -86,14 +93,16 @@ def _collect_tracks(
                 log(f"  [youtube] skipped (full album)  —  {yt_title[:70]}")
                 continue
             artist, query = parse_youtube_title(yt_title)
+            if not artist:
+                artist = derive_artist_from_channel(yt_channel)
             track_id = spotify_service.search_track(query, artist=artist, genre_filter=genre_filter, min_duration_ms=min_duration_ms)
             if track_id and track_id not in seen:
                 seen.add(track_id)
                 track_ids.append(track_id)
                 low_confidence += 1
-                log(f"  [youtube→spotify] {track_id}  —  {yt_title[:70]}")
+                log(f"  [youtube→spotify] {track_id}  —  {yt_title[:70]}  (artist hint: {artist or 'none'})")
             elif not track_id:
-                log(f"  [youtube] no Spotify match for: {yt_title[:70]}")
+                log(f"  [youtube] no Spotify match for: {yt_title[:70]}  (artist hint: {artist or 'none'})")
 
     return track_ids, low_confidence
 
@@ -102,6 +111,7 @@ def _collect_bandcamp_tracks(
     tag: str,
     log: Callable[[str], None],
     seen: set[str],
+    genre_filter: str | None = None,
     min_duration_ms: int | None = None,
 ) -> tuple[list[str], int]:
     """Resolve Bandcamp new releases for a tag to Spotify track IDs."""
@@ -110,7 +120,7 @@ def _collect_bandcamp_tracks(
     track_ids: list[str] = []
     for item in tracks:
         artist, title = item["artist"], item["title"]
-        track_id = spotify_service.search_track(title, artist=artist, min_duration_ms=min_duration_ms)
+        track_id = spotify_service.search_track(title, artist=artist, genre_filter=genre_filter, min_duration_ms=min_duration_ms)
         if track_id and track_id not in seen:
             seen.add(track_id)
             track_ids.append(track_id)
@@ -181,7 +191,7 @@ class SyncService:
                     log(f"Fetching Bandcamp new releases for tag '{tag}'...")
                     try:
                         bc_ids, bc_count = _collect_bandcamp_tracks(
-                            tag, log, seen=bandcamp_seen, min_duration_ms=min_duration_ms
+                            tag, log, seen=bandcamp_seen, genre_filter=genre_filter, min_duration_ms=min_duration_ms
                         )
                         new_track_ids = new_track_ids + bc_ids
                         log(f"Added {bc_count} track(s) from Bandcamp tag '{tag}'")

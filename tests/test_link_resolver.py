@@ -1,4 +1,9 @@
-from app.services.link_resolver import classify_url, extract_spotify_track_id, parse_youtube_title
+from app.services.link_resolver import (
+    classify_url,
+    derive_artist_from_channel,
+    extract_spotify_track_id,
+    parse_youtube_title,
+)
 
 
 def test_classify_spotify_url():
@@ -44,3 +49,17 @@ def test_parse_youtube_title_nested_dash_in_track():
     artist, track = parse_youtube_title("Be'lakor - Vessels - Lilt (Official)")
     assert artist == "Be'lakor"
     assert track == "Vessels - Lilt"
+
+
+def test_derive_artist_from_channel_strips_topic_suffix():
+    assert derive_artist_from_channel("Insomnium - Topic") == "Insomnium"
+
+
+def test_derive_artist_from_channel_returns_raw_channel_otherwise():
+    assert derive_artist_from_channel("Be'lakor Official") == "Be'lakor Official"
+
+
+def test_derive_artist_from_channel_handles_empty():
+    assert derive_artist_from_channel(None) is None
+    assert derive_artist_from_channel("") is None
+    assert derive_artist_from_channel("   ") is None
