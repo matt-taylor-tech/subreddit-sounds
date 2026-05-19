@@ -51,6 +51,18 @@ def test_parse_youtube_title_nested_dash_in_track():
     assert track == "Vessels - Lilt"
 
 
+def test_parse_youtube_title_en_dash():
+    artist, track = parse_youtube_title("DARK TRANQUILLITY – Unforgivable (OFFICIAL VIDEO)")
+    assert artist == "DARK TRANQUILLITY"
+    assert track == "Unforgivable"
+
+
+def test_parse_youtube_title_em_dash():
+    artist, track = parse_youtube_title("Insomnium — Mortal Share")
+    assert artist == "Insomnium"
+    assert track == "Mortal Share"
+
+
 def test_derive_artist_from_channel_strips_topic_suffix():
     assert derive_artist_from_channel("Insomnium - Topic") == "Insomnium"
 

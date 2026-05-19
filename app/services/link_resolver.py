@@ -55,6 +55,10 @@ _NOISE = re.compile(
     re.IGNORECASE,
 )
 
+# Hyphen, en dash, or em dash, each surrounded by whitespace — YouTube titles
+# use all three for the artist/track separator (label uploads often use en dash).
+_DASH_SPLIT = re.compile(r"\s+[-–—]\s+")
+
 
 def clean_youtube_title(title: str) -> str:
     """Strip common YouTube noise suffixes to improve Spotify search accuracy."""
@@ -64,13 +68,17 @@ def clean_youtube_title(title: str) -> str:
 def parse_youtube_title(title: str) -> tuple[str | None, str]:
     """Split "Artist - Track Title (noise)" into (artist, track).
 
-    Returns (None, cleaned_title) when no "Artist - " separator is found,
-    signalling the caller to fall back to a freetext Spotify search.
+    Accepts hyphen, en dash, or em dash as the separator (with surrounding
+    whitespace). Returns (None, cleaned_title) when no separator is found,
+    signalling the caller to fall back to a channel-derived artist hint.
     """
     cleaned = _NOISE.sub("", title).strip()
-    if " - " in cleaned:
-        artist, _, track = cleaned.partition(" - ")
-        return artist.strip() or None, track.strip()
+    match = _DASH_SPLIT.search(cleaned)
+    if match:
+        artist = cleaned[: match.start()].strip()
+        track = cleaned[match.end() :].strip()
+        if artist:
+            return artist, track
     return None, cleaned
 
 
