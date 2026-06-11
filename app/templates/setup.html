@@ -25,7 +25,7 @@
     </div>
 
     <h2>Reddit</h2>
-    <p>Posts are fetched from Reddit's public JSON feed — no API key required.</p>
+    <p>Posts are read from Reddit's public RSS feed — no API key required. OAuth credentials are optional (see below).</p>
     <div class="input-block">
       <label for="reddit_subreddit">Subreddit (without r/)</label><br />
       <input id="reddit_subreddit" name="reddit_subreddit" value="MelodicDeathMetal" required />
@@ -50,6 +50,22 @@
         </select>
       </div>
     </div>
+    <div class="input-block">
+      <label for="reddit_user_agent">User-Agent</label><br />
+      <input id="reddit_user_agent" name="reddit_user_agent" value="web:listige-clone:0.1 (by /u/suiifelse)" />
+      <small class="muted-small">Reddit format: <code>&lt;platform&gt;:&lt;app-id&gt;:&lt;version&gt; (by /u/&lt;username&gt;)</code>.</small>
+    </div>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="reddit_client_id">OAuth Client ID <span class="muted-small">(optional)</span></label><br />
+        <input id="reddit_client_id" name="reddit_client_id" placeholder="leave blank to use the public RSS feed" />
+      </div>
+      <div class="input-block flex-1">
+        <label for="reddit_client_secret">OAuth Client Secret</label><br />
+        <input id="reddit_client_secret" name="reddit_client_secret" />
+      </div>
+    </div>
+    <p><small class="muted-small">Leave blank to use Reddit's public RSS feed. Only fill these in if you already have approved Reddit OAuth credentials — since Reddit's Nov 2025 policy change, new credentials require approval via Reddit's developer support process and can no longer be self-created.</small></p>
 
     <h2>Spotify API</h2>
     <p>Create an app at <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>.</p>

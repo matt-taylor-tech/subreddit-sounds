@@ -6,7 +6,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.models import Run
-from app.services import settings_service, spotify_service
+from app.services import reddit_service, settings_service, spotify_service
 from app.services.link_resolver import (
     classify_url,
     clean_youtube_title,
@@ -18,19 +18,6 @@ from app.services.link_resolver import (
 )
 from app.services import bandcamp_service
 from app.services.reconcile import reconcile_latest_cap
-
-
-def _fetch_reddit_posts(
-    subreddit: str, user_agent: str, sort: str = "top", timeframe: str = "week", limit: int = 100
-) -> list[dict]:
-    url = f"https://www.reddit.com/r/{subreddit}/{sort}.json"
-    params: dict = {"limit": limit}
-    if sort == "top":
-        params["t"] = timeframe
-    with httpx.Client(follow_redirects=True, timeout=15) as client:
-        r = client.get(url, headers={"User-Agent": user_agent}, params=params)
-        r.raise_for_status()
-    return r.json()["data"]["children"]
 
 
 def _youtube_meta(video_id: str) -> tuple[str | None, str | None]:
@@ -150,7 +137,9 @@ class SyncService:
 
         try:
             subreddit = settings_service.get("reddit_subreddit", "MelodicDeathMetal")
-            user_agent = settings_service.get("reddit_user_agent", "listige-clone/0.1")
+            user_agent = settings_service.get(
+                "reddit_user_agent", "web:listige-clone:0.1 (by /u/suiifelse)"
+            )
             sort = settings_service.get("reddit_sort", "top")
             timeframe = settings_service.get("reddit_timeframe", "week")
             sync_cap = int(settings_service.get("sync_cap", "25"))
@@ -162,8 +151,9 @@ class SyncService:
             # --- Reddit ---
             label = f"{sort}/{timeframe}" if sort == "top" else sort
             log(f"Fetching r/{subreddit} [{label}] (limit=100)")
-            posts = _fetch_reddit_posts(subreddit, user_agent, sort, timeframe)
-            log(f"Fetched {len(posts)} posts — resolving links...")
+            auth_label = "OAuth API" if reddit_service.has_credentials() else "public RSS"
+            posts = reddit_service.fetch_posts(subreddit, user_agent, sort, timeframe)
+            log(f"Fetched {len(posts)} posts via {auth_label} — resolving links...")
 
             if not spotify_service.is_connected():
                 log("Spotify not connected — visit the dashboard to authorise")

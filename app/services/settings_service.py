@@ -20,7 +20,7 @@ DEFAULTS: dict[str, str] = {
     "sync_hour": "7",
     "sync_minute": "0",
     "sync_timezone": "America/New_York",
-    "reddit_user_agent": "listige-clone/0.1",
+    "reddit_user_agent": "web:listige-clone:0.1 (by /u/suiifelse)",
     "reddit_subreddit": "MelodicDeathMetal",
     "reddit_sort": "top",
     "reddit_timeframe": "week",
@@ -37,6 +37,9 @@ _SECRET_KEYS = {
     "spotify_playlist_id",
     "spotify_access_token",
     "spotify_refresh_token",
+    "reddit_client_id",
+    "reddit_client_secret",
+    "reddit_access_token",
 }
 
 

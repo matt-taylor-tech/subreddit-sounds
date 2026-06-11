@@ -34,6 +34,22 @@
         </select>
       </div>
     </div>
+    <div class="input-block">
+      <label for="reddit_user_agent">User-Agent</label><br />
+      <input id="reddit_user_agent" name="reddit_user_agent" value="{{ settings.reddit_user_agent }}" />
+      <small class="muted-small">Reddit requires the format <code>&lt;platform&gt;:&lt;app-id&gt;:&lt;version&gt; (by /u/&lt;username&gt;)</code>, e.g. <code>web:listige-clone:0.1 (by /u/suiifelse)</code>.</small>
+    </div>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="reddit_client_id">OAuth Client ID <span class="muted-small">(optional)</span></label><br />
+        <input id="reddit_client_id" name="reddit_client_id" value="{{ settings.reddit_client_id }}" placeholder="leave blank to use the public RSS feed" />
+      </div>
+      <div class="input-block flex-1">
+        <label for="reddit_client_secret">OAuth Client Secret</label><br />
+        <input id="reddit_client_secret" name="reddit_client_secret" value="{{ settings.reddit_client_secret }}" />
+      </div>
+    </div>
+    <small class="muted-small">By default, posts are read from Reddit's public RSS feed — no credentials needed. If you have approved Reddit OAuth credentials, enter them here to use the authenticated API instead. Note: since Reddit's Nov 2025 <a href="https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy" target="_blank" rel="noopener">Responsible Builder Policy</a>, new credentials must be requested via Reddit's developer support process — self-service app creation is no longer available.</small>
   </div>
 
   <div class="card">

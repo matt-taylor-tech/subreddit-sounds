@@ -159,6 +159,9 @@ def _settings_context() -> dict:
         "reddit_subreddit": settings_service.get("reddit_subreddit", "MelodicDeathMetal"),
         "reddit_sort": settings_service.get("reddit_sort", "top"),
         "reddit_timeframe": settings_service.get("reddit_timeframe", "week"),
+        "reddit_user_agent": settings_service.get("reddit_user_agent", ""),
+        "reddit_client_id": settings_service.get("reddit_client_id", ""),
+        "reddit_client_secret": settings_service.get("reddit_client_secret", ""),
         "sync_cap": settings_service.get("sync_cap", "25"),
         "min_track_duration_sec": settings_service.get("min_track_duration_sec", "120"),
         "sync_timezone": settings_service.get("sync_timezone", "America/New_York"),
@@ -191,6 +194,9 @@ def settings_save(
     reddit_subreddit: str = Form(...),
     reddit_sort: str = Form("top"),
     reddit_timeframe: str = Form("week"),
+    reddit_user_agent: str = Form(""),
+    reddit_client_id: str = Form(""),
+    reddit_client_secret: str = Form(""),
     sync_cap: int = Form(25),
     min_track_duration_sec: int = Form(120),
     sync_timezone: str = Form("America/New_York"),
@@ -218,6 +224,7 @@ def settings_save(
         "reddit_subreddit": reddit_subreddit.strip(),
         "reddit_sort": reddit_sort,
         "reddit_timeframe": reddit_timeframe,
+        "reddit_client_id": reddit_client_id.strip(),
         "sync_cap": str(sync_cap),
         "min_track_duration_sec": str(max(0, min_track_duration_sec)),
         "sync_timezone": sync_timezone.strip(),
@@ -230,6 +237,18 @@ def settings_save(
     # Only overwrite the secret if a new one was provided
     if spotify_client_secret.strip():
         updates["spotify_client_secret"] = spotify_client_secret.strip()
+
+    # Keep the existing User-Agent default if the field was cleared
+    if reddit_user_agent.strip():
+        updates["reddit_user_agent"] = reddit_user_agent.strip()
+
+    # Reddit OAuth secret: only overwrite when provided. Whenever credentials
+    # change, drop the cached app-only token so the next sync re-authenticates.
+    if reddit_client_secret.strip():
+        updates["reddit_client_secret"] = reddit_client_secret.strip()
+    if reddit_client_id.strip() != settings_service.get("reddit_client_id") or reddit_client_secret.strip():
+        updates["reddit_access_token"] = ""
+        updates["reddit_token_expiry"] = "0"
 
     settings_service.put_many(updates)
 
