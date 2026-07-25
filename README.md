@@ -89,6 +89,33 @@ Change the left side of `-p` (e.g. `-p 9000:8000`) to serve on another port.
 
 That's it — no `.env`, no secrets on disk.
 
+## Updating
+
+Your database and secret key live in the data volume, so they survive upgrades.
+
+**Docker Compose:**
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+**docker run:**
+
+```bash
+git pull
+docker build -t subreddit-sounds .
+docker stop subreddit-sounds && docker rm subreddit-sounds
+docker run -d \
+  --name subreddit-sounds \
+  --restart unless-stopped \
+  -p 8000:8000 \
+  -v subreddit-sounds-data:/app/data \
+  subreddit-sounds
+```
+
+Recreating the container is expected — nothing persistent lives inside it.
+
 ## Configuration
 
 All configuration is done in the admin console and stored in the database:
