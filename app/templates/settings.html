@@ -13,7 +13,11 @@
     <h2>Reddit</h2>
     <div class="input-block">
       <label for="reddit_subreddit">Subreddit (without r/)</label><br />
-      <input id="reddit_subreddit" name="reddit_subreddit" value="{{ settings.reddit_subreddit }}" required />
+      <input id="reddit_subreddit" name="reddit_subreddit" value="{{ settings.reddit_subreddit }}"
+             list="subreddit_options" placeholder="pick a suggestion or type any subreddit" required />
+      <datalist id="subreddit_options">
+        {% for sub in subreddit_suggestions %}<option value="{{ sub }}"></option>{% endfor %}
+      </datalist>
     </div>
     <div class="row">
       <div class="input-block flex-1">
@@ -113,7 +117,10 @@
     {% endif %}
     <div class="input-block">
       <label for="spotify_genre_filter">Genre filter for YouTube→Spotify freetext matches</label><br />
-      <input id="spotify_genre_filter" name="spotify_genre_filter" value="{{ settings.spotify_genre_filter }}" placeholder="e.g. metal — leave blank to disable" />
+      <input id="spotify_genre_filter" name="spotify_genre_filter" value="{{ settings.spotify_genre_filter }}" list="genre_options" placeholder="e.g. metal — leave blank to disable" />
+      <datalist id="genre_options">
+        {% for genre in genre_suggestions %}<option value="{{ genre }}"></option>{% endfor %}
+      </datalist>
       <small class="muted-small">Used in freetext searches and to reject structured matches when Spotify artist genres are known and clearly outside this filter. Ignored for direct Spotify links.</small>
     </div>
   </div>
@@ -143,7 +150,7 @@
     {% endfor %}
 
     <div class="input-block" style="display:flex; gap:0.5rem; margin-top:0.5rem;">
-      <input name="new_bc_tag" placeholder="add-a-tag (e.g. melodic-black-metal)" style="flex:1" />
+      <input name="new_bc_tag" list="genre_options" placeholder="add-a-tag (e.g. melodic-black-metal)" style="flex:1" />
       <small class="muted-small" style="align-self:center;">Saves with the form below</small>
     </div>
   </div>
