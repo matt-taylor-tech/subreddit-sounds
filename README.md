@@ -3,9 +3,9 @@
 **Turn what a music subreddit is posting into a Spotify playlist that stays fresh on its own.**
 
 Point Subreddit Sounds at a subreddit and it keeps a Spotify playlist stocked
-with the tracks that community is sharing — refreshed automatically every day.
+with the tracks that community is sharing, refreshed automatically every day.
 It's self-hosted: one Docker container, a SQLite file, and a small web admin
-console. No config files and no API keys on disk — everything is set up in the
+console. No config files and no API keys on disk; everything is set up in the
 browser on first run.
 
 > **Live example:** a public playlist this keeps updated automatically →
@@ -15,14 +15,14 @@ browser on first run.
 
 Once a day (default 07:00, configurable), Subreddit Sounds:
 
-1. **Pulls the top posts** from your chosen subreddit(s) — via Reddit's public
+1. **Pulls the top posts** from your chosen subreddit(s), via Reddit's public
    RSS feed, or the OAuth API if you add credentials.
 2. **Resolves each post to a Spotify track.** Direct Spotify links are taken
    as-is; YouTube links get their title and artist parsed (using the channel as
    an artist hint) and searched on Spotify. Results are filtered by genre and
    minimum duration, and full-album links are skipped.
 3. *(Optional)* also pulls **Bandcamp** new releases by tag.
-4. **Reconciles the playlist to the latest N tracks** (default 25) — adds the
+4. **Reconciles the playlist to the latest N tracks** (default 25): adds the
    new finds and trims the oldest, so you get a rolling, always-current playlist
    instead of an ever-growing dump.
 
@@ -41,15 +41,15 @@ subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks
 - **Storage:** SQLite in a mounted volume. Your Reddit/Spotify credentials and
   all settings live in the database, never in the repo or image.
 - **Sessions:** the cookie-signing key is auto-generated and persisted to the
-  data volume on first run — nothing to configure.
+  data volume on first run, nothing to configure.
 
 ## Screenshots
 
-**Dashboard** — status, next scheduled run, and manual controls:
+**Dashboard**: status, next scheduled run, and manual controls:
 
 ![Subreddit Sounds dashboard](screenshots/dashboard.png)
 
-**Run history** — every sync with its full log:
+**Run history**: every sync with its full log:
 
 ![Subreddit Sounds run history](screenshots/runs.png)
 
@@ -92,7 +92,7 @@ Change the left side of `-p` (e.g. `-p 9000:8000`) to serve on another port.
 
 ## First-run setup
 
-1. Open the app — the first visit redirects you to `/setup`.
+1. Open the app; the first visit redirects you to `/setup`.
 2. Create your **admin login**.
 3. Connect **Spotify** and paste the target **playlist ID** (the id from the
    playlist's share URL).
@@ -100,7 +100,7 @@ Change the left side of `-p` (e.g. `-p 9000:8000`) to serve on another port.
    track length, playlist cap).
 5. Hit **Run now** to do a first sync, or wait for the daily job.
 
-That's it — no `.env`, no secrets on disk.
+That's it: no `.env`, no secrets on disk.
 
 ## Updating
 
@@ -127,7 +127,7 @@ docker run -d \
   subreddit-sounds
 ```
 
-Recreating the container is expected — nothing persistent lives inside it.
+Recreating the container is expected; nothing persistent lives inside it.
 
 ## Configuration
 
@@ -139,7 +139,7 @@ All configuration is done in the admin console and stored in the database:
 - **Schedule:** daily run time and timezone, or disable the schedule entirely.
 
 The only optional environment variables (rarely needed) are `APP_PORT`,
-`DATABASE_URL`, and `SECRET_KEY` — pass them with `-e` / `environment:` if you
+`DATABASE_URL`, and `SECRET_KEY`; pass them with `-e` / `environment:` if you
 want to override a default.
 
 ## Data & backups
@@ -155,12 +155,12 @@ Your data is untouched across image rebuilds and upgrades.
 
 ## Security
 
-- The session key is auto-generated and persisted on first run — keep the
+- The session key is auto-generated and persisted on first run; keep the
   `data/` volume private, since it holds that key and the database.
 - Set your admin credentials in the setup wizard.
 - For internet-facing deployments, put it behind a reverse proxy (e.g. Nginx)
   with TLS rather than exposing port 8000 directly.
-- All API secrets live in the database volume — never in the repo or image.
+- All API secrets live in the database volume, never in the repo or image.
 
 ## Development
 
