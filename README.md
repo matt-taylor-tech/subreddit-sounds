@@ -191,10 +191,19 @@ into per-playlist and global settings:
 - **Playlists** (the *Playlists* page): add any number of sync targets. Each has
   its own playlist ID, subreddit(s), genre filter, size cap, daily run time,
   optional Bandcamp tags, and an optional block-list that keeps tracks you delete
-  by hand from being re-added. Genres and Bandcamp tags are picked from Bandcamp's
-  own discover taxonomy rather than typed; if you do type one, it's checked
-  against Bandcamp's tag list when you save, so a typo can't silently sync
-  nothing. Refresh the vendored genre list with
+  by hand from being re-added.
+- **Genre filter**: Spotify describes artists with thousands of very specific
+  genre names (`melodic death metal` and `death metal` are both real and behave
+  differently), so there is nothing useful to type here. Instead, hit *Scan my
+  subreddits for genres* on a playlist: it resolves recent posts, looks up the
+  genre Spotify actually assigns each matched artist, and gives you a checklist
+  with track counts. Two switches make the rest explicit: *include sub-styles*
+  (ticking `death metal` also accepts `melodic death metal`) and whether to allow
+  artists Spotify hasn't classified at all, which is a sizeable share of smaller
+  ones. Scanning is read-only and never touches the playlist.
+- **Bandcamp tags** are picked from Bandcamp's own discover taxonomy rather than
+  typed; if you do type one, it's checked against Bandcamp's tag list when you
+  save, so a typo can't silently sync nothing. Refresh the vendored list with
   `python scripts/refresh_bandcamp_taxonomy.py`.
 - **Global settings** (the *Settings* page): Spotify and Reddit credentials,
   Reddit sort/timeframe, minimum track duration, timezone, a scheduled-sync

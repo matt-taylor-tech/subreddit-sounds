@@ -113,7 +113,7 @@ def _record_searches(monkeypatch, results):
     """Stub the search+select step, returning results[i] for the i-th call."""
     queries = []
 
-    def _fake(q, *, query, artist, genre_filter, min_duration_ms, artist_is_hint):
+    def _fake(q, *, query, artist, genre_filter, min_duration_ms, artist_is_hint, **kwargs):
         queries.append((q, artist_is_hint))
         return results[len(queries) - 1] if len(queries) <= len(results) else None
 
@@ -181,9 +181,9 @@ def test_genre_filtered_target_keeps_a_verified_hint_match():
     assert out == "cand"
 
 
-def test_genre_filtered_target_rejects_an_unverifiable_hint_match():
-    # Same low-confidence path, but the artist has no genres, so nothing confirms
-    # it belongs. Must not slip past the filter.
+def test_unclassified_artist_excluded_when_the_target_says_so():
+    # One visible setting decides this, on every path, rather than the strictness
+    # depending on how the artist happened to be discovered.
     out = _select_best_track(
         _one(),
         query="Ashes",
@@ -191,22 +191,24 @@ def test_genre_filtered_target_rejects_an_unverifiable_hint_match():
         artist_is_hint=True,
         genre_filter="melodic death metal",
         artist_genres_by_id={"a1": []},
+        include_unclassified=False,
     )
     assert out is None
 
 
-def test_unclassified_artist_still_passes_on_the_trusted_path():
-    # No genre data plus a title-parsed artist keeps the old lenient behaviour, so
-    # existing playlists don't suddenly lose tracks.
-    out = _select_best_track(
-        _one(),
-        query="Ashes",
-        artist="Unknown Band",
-        artist_is_hint=False,
-        genre_filter="melodic death metal",
-        artist_genres_by_id={"a1": []},
-    )
-    assert out == "cand"
+def test_unclassified_artist_included_by_default():
+    # Default preserves the historical lenient behaviour, so upgrading an existing
+    # target doesn't silently shrink its playlist.
+    for hint in (True, False):
+        out = _select_best_track(
+            _one(),
+            query="Ashes",
+            artist="Unknown Band",
+            artist_is_hint=hint,
+            genre_filter="melodic death metal",
+            artist_genres_by_id={"a1": []},
+        )
+        assert out == "cand"
 
 
 def test_no_genre_filter_leaves_the_hint_path_permissive():

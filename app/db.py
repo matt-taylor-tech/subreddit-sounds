@@ -25,6 +25,23 @@ def run_migrations() -> None:
             conn.execute(text("ALTER TABLE runs ADD COLUMN target_label TEXT"))
             conn.commit()
 
+        target_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(targets)"))}
+        if target_cols:  # skip on a fresh DB, where create_all already made them
+            # Defaults match the pre-existing behaviour: substyles on (so a broad
+            # pick keeps working) and unclassified artists allowed through, which
+            # is what the old genre check did.
+            if "genre_include_substyles" not in target_cols:
+                conn.execute(text("ALTER TABLE targets ADD COLUMN genre_include_substyles BOOLEAN DEFAULT 1 NOT NULL"))
+                conn.commit()
+            if "genre_include_unclassified" not in target_cols:
+                conn.execute(
+                    text("ALTER TABLE targets ADD COLUMN genre_include_unclassified BOOLEAN DEFAULT 1 NOT NULL")
+                )
+                conn.commit()
+            if "genre_scan" not in target_cols:
+                conn.execute(text("ALTER TABLE targets ADD COLUMN genre_scan TEXT DEFAULT '' NOT NULL"))
+                conn.commit()
+
 
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()

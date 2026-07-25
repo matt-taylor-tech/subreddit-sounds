@@ -50,11 +50,19 @@ def _youtube_meta(video_id: str) -> tuple[str | None, str | None]:
     return None, None
 
 
-def _collect_tracks(
+def min_duration_ms() -> int | None:
+    """Global minimum track length in ms, or None when the filter is off."""
+    min_dur_sec = int(settings_service.get("min_track_duration_sec", "120"))
+    return min_dur_sec * 1000 if min_dur_sec > 0 else None
+
+
+def collect_tracks(
     posts: list[dict],
     log: Callable[[str], None],
     genre_filter: str | None = None,
     min_duration_ms: int | None = None,
+    include_substyles: bool = True,
+    include_unclassified: bool = True,
 ) -> tuple[list[str], int]:
     """
     Resolve each post URL to a Spotify track ID.
@@ -105,6 +113,8 @@ def _collect_tracks(
                 genre_filter=genre_filter,
                 min_duration_ms=min_duration_ms,
                 artist_is_hint=artist_is_hint,
+                include_substyles=include_substyles,
+                include_unclassified=include_unclassified,
             )
             if track_id and track_id not in seen:
                 seen.add(track_id)
@@ -128,6 +138,8 @@ def _collect_bandcamp_tracks(
     seen: set[str],
     genre_filter: str | None = None,
     min_duration_ms: int | None = None,
+    include_substyles: bool = True,
+    include_unclassified: bool = True,
 ) -> tuple[list[str], int]:
     """Resolve Bandcamp new releases for a tag to Spotify track IDs."""
     tracks = bandcamp_service.fetch_new_tracks(tag)
@@ -136,7 +148,12 @@ def _collect_bandcamp_tracks(
     for item in tracks:
         artist, title = item["artist"], item["title"]
         track_id = spotify_service.search_track(
-            title, artist=artist, genre_filter=genre_filter, min_duration_ms=min_duration_ms
+            title,
+            artist=artist,
+            genre_filter=genre_filter,
+            min_duration_ms=min_duration_ms,
+            include_substyles=include_substyles,
+            include_unclassified=include_unclassified,
         )
         if track_id and track_id not in seen:
             seen.add(track_id)
@@ -159,7 +176,7 @@ def _fetch_all_posts(
     One failing subreddit is logged and skipped rather than aborting the whole
     run (mirrors the Bandcamp per-tag handling). Reddit requests are paced
     process-wide inside reddit_service, so no explicit spacing is needed here.
-    Track-level dedup happens later in ``_collect_tracks``, so overlapping posts
+    Track-level dedup happens later in ``collect_tracks``, so overlapping posts
     across subreddits are fine.
     """
     all_posts: list[dict] = []
@@ -226,8 +243,9 @@ class SyncService:
             sync_cap = target.cap
             playlist_id = target.playlist_id
             genre_filter = target.genre_filter or None
-            min_dur_sec = int(settings_service.get("min_track_duration_sec", "120"))
-            min_duration_ms = min_dur_sec * 1000 if min_dur_sec > 0 else None
+            include_substyles = target.genre_include_substyles
+            include_unclassified = target.genre_include_unclassified
+            min_duration = min_duration_ms()
 
             # --- Reddit ---
             label = f"{sort}/{timeframe}" if sort == "top" else sort
@@ -247,8 +265,13 @@ class SyncService:
                 db.commit()
                 return run.id
 
-            new_track_ids, low_conf = _collect_tracks(
-                posts, log, genre_filter=genre_filter, min_duration_ms=min_duration_ms
+            new_track_ids, low_conf = collect_tracks(
+                posts,
+                log,
+                genre_filter=genre_filter,
+                min_duration_ms=min_duration,
+                include_substyles=include_substyles,
+                include_unclassified=include_unclassified,
             )
             log(f"Resolved {len(new_track_ids)} unique track(s) from Reddit ({low_conf} via YouTube title search)")
 
@@ -262,7 +285,13 @@ class SyncService:
                     log(f"Fetching Bandcamp new releases for tag '{tag}'...")
                     try:
                         bc_ids, bc_count = _collect_bandcamp_tracks(
-                            tag, log, seen=bandcamp_seen, genre_filter=genre_filter, min_duration_ms=min_duration_ms
+                            tag,
+                            log,
+                            seen=bandcamp_seen,
+                            genre_filter=genre_filter,
+                            min_duration_ms=min_duration,
+                            include_substyles=include_substyles,
+                            include_unclassified=include_unclassified,
                         )
                         new_track_ids = new_track_ids + bc_ids
                         log(f"Added {bc_count} track(s) from Bandcamp tag '{tag}'")

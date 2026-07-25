@@ -110,9 +110,11 @@
     <h2>4. This playlist's sync settings</h2>
     <div class="input-block">
       <label for="spotify_genre_filter">Genre filter for YouTube→Spotify matches (optional)</label><br />
-      <input id="spotify_genre_filter" name="spotify_genre_filter" class="pickify"
-             data-allow-custom="true" data-empty-text="no genre filter" />
-      <small class="muted-small">Appended as <code>genre:&lt;value&gt;</code> to Spotify freetext searches, and used to reject structured matches when Spotify artist genres are known and outside this filter. Ignored for direct Spotify links.</small>
+      <input id="spotify_genre_filter" name="spotify_genre_filter"
+             placeholder="leave blank, then pick real genres later" />
+      <small class="muted-small">Best left blank. Spotify uses thousands of very specific genre names, so guessing one
+         here is unreliable. After setup, open this playlist under <strong>Playlists</strong> and use
+         <em>Scan my subreddits for genres</em> to pick from the genres your subreddits actually contain.</small>
     </div>
     <div class="row">
       <div class="input-block flex-1">

@@ -28,17 +28,9 @@
       </datalist>
       <small class="muted-small">Add as many as you like; all feed this playlist. Each is fetched separately and a bad one is skipped.</small>
     </div>
-    <div class="row">
-      <div class="input-block flex-1">
-        <label for="genre_filter">Genre filter (optional)</label><br />
-        <input id="genre_filter" name="genre_filter" value="{{ form.genre_filter }}" class="pickify"
-               data-allow-custom="true" data-empty-text="no genre filter" />
-        <small class="muted-small">Pick a genre, or type your own keyword. Matched loosely against the artist's Spotify genres, so broad terms work best. Nothing selected = no genre filtering.</small>
-      </div>
-      <div class="input-block flex-1">
-        <label for="cap">Max songs in playlist</label><br />
-        <input id="cap" name="cap" type="number" min="1" max="500" value="{{ form.cap }}" required />
-      </div>
+    <div class="input-block">
+      <label for="cap">Max songs in playlist</label><br />
+      <input id="cap" name="cap" type="number" min="1" max="500" value="{{ form.cap }}" required />
     </div>
     <div class="row">
       <div class="input-block flex-1">
@@ -51,6 +43,76 @@
       </div>
     </div>
     <small class="muted-small">Runs daily at this time (your global timezone from Settings).</small>
+  </div>
+
+  <div class="card">
+    <h2>Genre filter (optional)</h2>
+    {% if scan_error %}<p class="error-text">{{ scan_error }}</p>{% endif %}
+
+    {% if not target_id %}
+    <p class="muted-small">Save the playlist first, then come back here to scan your subreddits and pick from the
+       genres they actually contain.</p>
+
+    {% elif genre_scan %}
+    <p class="muted-small">
+      From {{ genre_scan.posts }} recent post(s) in {{ genre_scan.subreddits|join(', ') }},
+      {{ genre_scan.resolved }} matched a Spotify track.
+      Tick the genres you want. Nothing ticked means no genre filtering.
+    </p>
+    <div class="genre-grid">
+      {% for row in genre_rows %}
+      <label class="genre-row">
+        <input type="checkbox" name="genres" value="{{ row.name }}" {{ 'checked' if row.checked }} />
+        <span>{{ row.name }}</span>
+        <span class="muted-small">{% if row.count is none %}not in last scan{% else %}{{ row.count }}{% endif %}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% if not genre_rows %}
+    <p class="muted-small">The scan found no classified artists. Spotify may not have genres for these artists yet.</p>
+    {% endif %}
+
+    <div class="input-block mt-sm">
+      <label>
+        <input type="checkbox" name="genre_include_substyles" value="true"
+               {{ 'checked' if form.genre_include_substyles }} />
+        Include sub-styles of what I ticked
+      </label>
+      <small class="muted-small">Ticking <code>death metal</code> also accepts <code>melodic death metal</code> and
+         <code>technical death metal</code>. Turn this off to match only the exact genres ticked above.</small>
+    </div>
+    <div class="input-block">
+      <label>
+        <input type="checkbox" name="genre_include_unclassified" value="true"
+               {{ 'checked' if form.genre_include_unclassified }} />
+        Also allow artists Spotify hasn't classified{% if genre_scan.unclassified %}
+          ({{ genre_scan.unclassified }} in the last scan){% endif %}
+      </label>
+      <small class="muted-small">Spotify has no genres at all for many smaller artists. Leave this on to keep them,
+         turn it off for a stricter playlist.</small>
+    </div>
+    <p class="muted-small">Last scanned {{ genre_scan.scanned_at.replace('T', ' ') }} UTC.</p>
+
+    {% else %}
+    <p class="muted-small">Spotify describes artists with thousands of very specific genre names, so rather than
+       guessing one, scan your subreddits and pick from what they actually contain.</p>
+    {% if form.genre_filter %}
+    <p class="muted-small">Currently filtering on: <code>{{ form.genre_filter }}</code></p>
+    <input type="hidden" name="genre_filter" value="{{ form.genre_filter }}" />
+    {% endif %}
+    {% endif %}
+
+    {% if target_id %}
+    {# Owned by the separate scan form below, so it never becomes this form's
+       default submit button (Enter in a text field must save, not scan). #}
+    <p class="mt-sm">
+      <button type="submit" form="scan-form">
+        {{ "Rescan for genres" if genre_scan else "Scan my subreddits for genres" }}
+      </button>
+      <small class="muted-small">Reads recent posts and looks up each match's genre. Takes a moment, changes nothing in
+         your playlist, and discards unsaved edits on this form, so save first.</small>
+    </p>
+    {% endif %}
   </div>
 
   <div class="card">
@@ -82,6 +144,14 @@
 
   <button type="submit">Save playlist</button>
 </form>
+
+{% if target_id %}
+{# Target of the "Scan for genres" button above. Separate from the main form so a
+   scan can't be triggered by pressing Enter while editing a field. #}
+<form id="scan-form" method="post" action="/admin/targets/{{ target_id }}/scan-genres">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+</form>
+{% endif %}
 
 {% if target_id %}
 <div class="card">
