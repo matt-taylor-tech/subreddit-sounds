@@ -96,6 +96,13 @@ Change the left side of `-p` (e.g. `-p 9000:8000`) to serve on another port.
 2. Create your **admin login**.
 3. Connect **Spotify** and paste the target **playlist ID** (the id from the
    playlist's share URL).
+   > **Connecting Spotify:** if your Spotify redirect/callback URI is a loopback
+   > address (`http://127.0.0.1:8000/callback`), you must complete the Spotify
+   > connection from a browser on the same machine that runs the app, so the
+   > callback resolves back to the app. On a headless server, tunnel it first:
+   > `ssh -L 8000:localhost:8000 user@host`, then open `http://127.0.0.1:8000`
+   > on your own computer. You only need to connect once; the token is stored on
+   > the server, so afterwards you can administer the app from any computer.
 4. Choose your **subreddit**, **schedule**, and any **filters** (genre, minimum
    track length, playlist cap).
 5. Hit **Run now** to do a first sync, or wait for the daily job.
