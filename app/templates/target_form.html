@@ -1,4 +1,7 @@
 {% extends "base.html" %}
+{% block page_data %}
+<script type="application/json" id="genre-taxonomy">{{ genre_taxonomy|tojson }}</script>
+{% endblock %}
 {% block content %}
 <h1>{{ "Edit playlist" if target_id else "Add a playlist" }}</h1>
 {% if error %}<p class="error-text">{{ error }}</p>{% endif %}
@@ -28,12 +31,9 @@
     <div class="row">
       <div class="input-block flex-1">
         <label for="genre_filter">Genre filter (optional)</label><br />
-        <input id="genre_filter" name="genre_filter" value="{{ form.genre_filter }}" list="genre_options"
-               placeholder="leave blank to disable" />
-        <datalist id="genre_options">
-          {% for g in genre_suggestions %}<option value="{{ g }}"></option>{% endfor %}
-        </datalist>
-        <small class="muted-small">A soft keyword, not a fixed list: any word works (the dropdown shows common ones). Blank = no genre filtering.</small>
+        <input id="genre_filter" name="genre_filter" value="{{ form.genre_filter }}" class="pickify"
+               data-allow-custom="true" data-empty-text="no genre filter" />
+        <small class="muted-small">Pick a genre, or type your own keyword. Matched loosely against the artist's Spotify genres, so broad terms work best. Nothing selected = no genre filtering.</small>
       </div>
       <div class="input-block flex-1">
         <label for="cap">Max songs in playlist</label><br />
@@ -63,8 +63,9 @@
     </div>
     <div class="input-block">
       <label for="bandcamp_tags">Bandcamp tags</label><br />
-      <input id="bandcamp_tags" name="bandcamp_tags" value="{{ form.bandcamp_tags }}" class="chipify"
-             data-list="genre_options" data-placeholder="type a tag, press Enter" />
+      <input id="bandcamp_tags" name="bandcamp_tags" value="{{ form.bandcamp_tags }}" class="pickify"
+             data-allow-custom="true" data-empty-text="no tags yet" />
+      <small class="muted-small">Bandcamp's own discover genres. Anything you type instead is checked against Bandcamp's tag list when you save.</small>
     </div>
   </div>
 

@@ -191,7 +191,11 @@ into per-playlist and global settings:
 - **Playlists** (the *Playlists* page): add any number of sync targets. Each has
   its own playlist ID, subreddit(s), genre filter, size cap, daily run time,
   optional Bandcamp tags, and an optional block-list that keeps tracks you delete
-  by hand from being re-added.
+  by hand from being re-added. Genres and Bandcamp tags are picked from Bandcamp's
+  own discover taxonomy rather than typed; if you do type one, it's checked
+  against Bandcamp's tag list when you save, so a typo can't silently sync
+  nothing. Refresh the vendored genre list with
+  `python scripts/refresh_bandcamp_taxonomy.py`.
 - **Global settings** (the *Settings* page): Spotify and Reddit credentials,
   Reddit sort/timeframe, minimum track duration, timezone, a scheduled-sync
   on/off switch, and an optional failure-notification webhook.

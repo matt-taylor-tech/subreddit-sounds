@@ -15,7 +15,14 @@ from app.csrf import csrf_context, verify_csrf
 from app.curated import curated_context
 from app.db import get_db
 from app.models import Run
-from app.services import config_io, reddit_service, settings_service, spotify_service, targets_service
+from app.services import (
+    bandcamp_service,
+    config_io,
+    reddit_service,
+    settings_service,
+    spotify_service,
+    targets_service,
+)
 from app.version import version_context
 
 router = APIRouter()
@@ -370,7 +377,15 @@ def _validate_target_form(db, form: dict, existing=None) -> tuple[dict | None, s
         problem = reddit_service.first_definitive_problem(added, settings_service.get("reddit_user_agent"))
         if problem:
             return None, problem.message
-    tags = ",".join(t.strip() for t in form["bandcamp_tags"].split(",") if t.strip())
+    # Same deal for tags: only newly-added ones are checked, so a target saved
+    # before a tag was retired (or while Bandcamp was down) stays editable.
+    saved_tags = {t.lower() for t in bandcamp_service.parse_tags(existing.bandcamp_tags)} if existing else set()
+    tags, tag_problem = bandcamp_service.resolve_tags(
+        bandcamp_service.parse_tags(form["bandcamp_tags"]), skip=saved_tags
+    )
+    if tag_problem:
+        return None, tag_problem.message
+    tags = ", ".join(tags)
     fields = {
         "name": form["name"].strip() or "Playlist",
         "playlist_id": form["playlist_id"].strip(),
