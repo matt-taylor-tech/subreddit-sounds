@@ -141,6 +141,19 @@ That's it: no `.env`, no secrets on disk.
 ## Updating
 
 Your database and secret key live in the data volume, so they survive upgrades.
+Two things about Docker catch people out here:
+
+- **Updating always replaces the container.** A container can't have its image
+  swapped; that reference is fixed when it's created. So `docker pull` alone
+  changes nothing until you recreate the container, and the "new container" you
+  end up with is the update, not a mistake.
+- **Stick to the way you installed.** Compose and `docker run` use *different*
+  volumes, so switching between them points the app at an empty database and it
+  looks like a fresh install (your old data is still in the other volume, intact).
+  Compose stores its volume as `<project>_subreddit_sounds_data`, while the
+  `docker run` commands below use `subreddit-sounds-data`. Check yours with
+  `docker volume ls | grep sounds`, and pass `-v <that name>:/app/data` if you do
+  need to move a Compose install onto plain `docker run`.
 
 **Prebuilt image (recommended):** pull the new `:latest` and recreate the container.
 
