@@ -28,6 +28,7 @@ DEFAULTS: dict[str, str] = {
     "sync_enabled": "true",
     "spotify_redirect_uri": "http://127.0.0.1:8000/callback",
     "min_track_duration_sec": "120",
+    "blocklist_enabled": "false",
 }
 
 _SECRET_KEYS = {

@@ -92,6 +92,23 @@
   </div>
 
   <div class="card">
+    <h2>Manual deletions</h2>
+    <div class="input-block">
+      <label>
+        <input type="checkbox" name="blocklist_enabled" value="true" {{ 'checked' if settings.blocklist_enabled == 'true' }} />
+        Make manual deletions stick
+      </label>
+      <small class="muted-small">When on, a track you remove from the playlist by hand is remembered and won't be re-added on the next sync, even if it's still trending. Tracks the app itself trimmed at the size cap are <em>not</em> blocked — they can still resurface if they trend again. Off by default; behavior is unchanged when off.</small>
+    </div>
+    <div class="input-block">
+      <label for="blocklist_ids">Blocked track IDs</label><br />
+      <textarea id="blocklist_ids" name="blocklist_ids" rows="4" style="width:100%; font-family:monospace; font-size:0.82em;"
+                placeholder="Spotify track IDs — auto-filled as you delete tracks; edit to unblock">{{ settings.blocklist_ids }}</textarea>
+      <small class="muted-small">Auto-populated from your manual deletions. Remove an ID here to allow that track back.</small>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Spotify API</h2>
     <div class="row">
       <div class="input-block flex-1">
