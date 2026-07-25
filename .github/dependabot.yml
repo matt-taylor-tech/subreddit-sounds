@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # Python dependencies (requirements.txt)
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      python-packages:
+        patterns:
+          - "*"
+
+  # GitHub Actions used in workflows
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Base image in the Dockerfile
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
