@@ -1,22 +1,24 @@
 # Subreddit Sounds
 
-**Turn what a music subreddit is posting into a Spotify playlist that stays fresh on its own.**
+**Turn what music subreddits are posting into Spotify playlists that stay fresh on their own.**
 
-Point Subreddit Sounds at a subreddit and it keeps a Spotify playlist stocked
-with the tracks that community is sharing, refreshed automatically every day.
-It's self-hosted: one Docker container, a SQLite file, and a small web admin
-console. No config files and no API keys on disk; everything is set up in the
-browser on first run.
+Point Subreddit Sounds at one or more subreddits and it keeps Spotify playlists
+stocked with the tracks those communities are sharing, refreshed automatically.
+Run as many playlists as you like, each fed by its own subreddits and with its
+own filters and schedule. It's self-hosted: one Docker container, a SQLite file,
+and a small web admin console. No config files and no API keys on disk;
+everything is set up in the browser on first run.
 
 > **Live example:** a public playlist this keeps updated automatically →
 > [open in Spotify](https://open.spotify.com/playlist/1UXnaj6qDYSoQW4745cndy)
 
 ## What it does
 
-Once a day (default 07:00, configurable), Subreddit Sounds:
+For each playlist, on its own daily schedule, Subreddit Sounds:
 
-1. **Pulls the top posts** from your chosen subreddit(s), via Reddit's public
-   RSS feed, or the OAuth API if you add credentials.
+1. **Pulls the top posts** from that playlist's subreddit(s) (comma-separate
+   several), via Reddit's public RSS feed, or the OAuth API if you add
+   credentials.
 2. **Resolves each post to a Spotify track.** Direct Spotify links are taken
    as-is; YouTube links get their title and artist parsed (using the channel as
    an artist hint) and searched on Spotify. Results are filtered by genre and
@@ -26,8 +28,12 @@ Once a day (default 07:00, configurable), Subreddit Sounds:
    new finds and trims the oldest, so you get a rolling, always-current playlist
    instead of an ever-growing dump.
 
-Everything runs through a web admin console: a first-run **setup wizard**, a
-manual **Run now** button, and **run history** with full per-run logs.
+Run several playlists at once, each with its own subreddits, genre filter, size
+cap, and run time. Everything runs through a web admin console: a first-run
+**setup wizard**, a **Playlists** page to manage each sync target, per-playlist
+**Preview / Run now**, **run history** with full per-run logs, an optional
+per-playlist **block-list** (so tracks you delete by hand stay gone), and an
+optional **failure webhook** (Discord/Slack/ntfy/Apprise).
 
 ## How it works
 
@@ -36,8 +42,9 @@ subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks
 (Reddit RSS/API)   (+ Bandcamp tags)   (direct links + YouTube matching)   (add new / trim to cap)
 ```
 
-- **Scheduler:** an in-app daily cron job (APScheduler). Time and timezone are
-  set in the wizard (default 07:00 `America/New_York`).
+- **Scheduler:** an in-app cron job per playlist (APScheduler); each playlist
+  runs at its own daily time, in a shared timezone. Reddit requests are paced
+  process-wide to stay within rate limits when several playlists sync.
 - **Storage:** SQLite in a mounted volume. Your Reddit/Spotify credentials and
   all settings live in the database, never in the repo or image.
 - **Sessions:** the cookie-signing key is auto-generated and persisted to the
@@ -66,8 +73,9 @@ subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks
 
 ## Quick start (prebuilt image)
 
-The fastest path: pull the published multi-arch image (amd64 + arm64, so it runs
-on a Raspberry Pi too) and run it, no clone or local build needed.
+Once a release has been published, the fastest path is to pull the multi-arch
+image (amd64 + arm64, so it runs on a Raspberry Pi too) and run it, no clone or
+local build needed. (No release yet? Build from source with either option below.)
 
 ```bash
 docker run -d \
@@ -122,9 +130,11 @@ Change the left side of `-p` (e.g. `-p 9000:8000`) to serve on another port.
    > `ssh -L 8000:localhost:8000 user@host`, then open `http://127.0.0.1:8000`
    > on your own computer. You only need to connect once; the token is stored on
    > the server, so afterwards you can administer the app from any computer.
-4. Choose your **subreddit**, **schedule**, and any **filters** (genre, minimum
-   track length, playlist cap).
+4. Choose the **subreddit(s)**, **schedule**, and any **filters** (genre, minimum
+   track length, playlist cap) for this first playlist.
 5. Hit **Run now** to do a first sync, or wait for the daily job.
+6. Add more playlists anytime under **Playlists**, each with its own subreddits,
+   filters, schedule, and optional block-list.
 
 That's it: no `.env`, no secrets on disk.
 
@@ -157,12 +167,16 @@ Recreating the container is expected; nothing persistent lives inside it.
 
 ## Configuration
 
-All configuration is done in the admin console and stored in the database:
+All configuration is done in the admin console and stored in the database, split
+into per-playlist and global settings:
 
-- **Source:** subreddit, sort (`top`), and timeframe (`week`); optional Bandcamp tags.
-- **Reddit credentials:** optional; unlocks the OAuth API instead of public RSS.
-- **Matching filters:** genre filter, minimum track duration, playlist size cap.
-- **Schedule:** daily run time and timezone, or disable the schedule entirely.
+- **Playlists** (the *Playlists* page): add any number of sync targets. Each has
+  its own playlist ID, subreddit(s), genre filter, size cap, daily run time,
+  optional Bandcamp tags, and an optional block-list that keeps tracks you delete
+  by hand from being re-added.
+- **Global settings** (the *Settings* page): Spotify and Reddit credentials,
+  Reddit sort/timeframe, minimum track duration, timezone, a scheduled-sync
+  on/off switch, and an optional failure-notification webhook.
 
 The only optional environment variables (rarely needed) are `APP_PORT`,
 `DATABASE_URL`, and `SECRET_KEY`; pass them with `-e` / `environment:` if you
