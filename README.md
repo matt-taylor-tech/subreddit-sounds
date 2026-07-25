@@ -40,6 +40,16 @@ subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks
 - **Sessions:** the cookie-signing key is auto-generated and persisted to the
   data volume on first run — nothing to configure.
 
+## Screenshots
+
+**Dashboard** — status, next scheduled run, and manual controls:
+
+![Subreddit Sounds dashboard](docs/screenshots/dashboard.png)
+
+**Run history** — every sync with its full log:
+
+![Subreddit Sounds run history](docs/screenshots/runs.png)
+
 ## Requirements
 
 - A working **Docker** install. New to Docker? See Docker's
