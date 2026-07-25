@@ -56,13 +56,21 @@ def setup_submit(
             status_code=400,
         )
 
-    user_agent = reddit_user_agent.strip() or _DEFAULT_USER_AGENT
-    check = reddit_service.check_subreddit(reddit_subreddit, user_agent)
-    if check.definitive and not check.ok:
+    subreddits = reddit_service.parse_subreddits(reddit_subreddit)
+    if not subreddits:
         return templates.TemplateResponse(
             request,
             "setup.html",
-            {"error": check.message},
+            {"error": "Enter at least one subreddit."},
+            status_code=400,
+        )
+    user_agent = reddit_user_agent.strip() or _DEFAULT_USER_AGENT
+    problem = reddit_service.first_definitive_problem(subreddits, user_agent)
+    if problem:
+        return templates.TemplateResponse(
+            request,
+            "setup.html",
+            {"error": problem.message},
             status_code=400,
         )
 
@@ -70,7 +78,7 @@ def setup_submit(
         {
             "admin_username": admin_username,
             "admin_password_hash": hash_password(admin_password),
-            "reddit_subreddit": reddit_service.normalize_subreddit(reddit_subreddit),
+            "reddit_subreddit": ", ".join(subreddits),
             "reddit_sort": reddit_sort,
             "reddit_timeframe": reddit_timeframe,
             "reddit_user_agent": user_agent,
