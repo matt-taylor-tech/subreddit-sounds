@@ -47,11 +47,11 @@ subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks
 
 **Dashboard** — status, next scheduled run, and manual controls:
 
-![Subreddit Sounds dashboard](docs/screenshots/dashboard.png)
+![Subreddit Sounds dashboard](screenshots/dashboard.png)
 
 **Run history** — every sync with its full log:
 
-![Subreddit Sounds run history](docs/screenshots/runs.png)
+![Subreddit Sounds run history](screenshots/runs.png)
 
 ## Requirements
 
