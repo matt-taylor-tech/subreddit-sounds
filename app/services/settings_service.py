@@ -41,6 +41,7 @@ _SECRET_KEYS = {
     "reddit_client_id",
     "reddit_client_secret",
     "reddit_access_token",
+    "notify_webhook_url",  # may embed a token (Discord/Slack/ntfy)
 }
 
 

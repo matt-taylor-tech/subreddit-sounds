@@ -6,7 +6,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.models import Run
-from app.services import bandcamp_service, reddit_service, settings_service, spotify_service
+from app.services import bandcamp_service, notify_service, reddit_service, settings_service, spotify_service
 from app.services.link_resolver import (
     classify_url,
     derive_artist_from_channel,
@@ -274,6 +274,12 @@ class SyncService:
             run.ended_at = datetime.utcnow()
             db.add(run)
             db.commit()
+            failed = run.status == "failed"
             self._lock.release()
+            # Best-effort failure notification, after releasing the lock so a slow
+            # webhook can't hold up the next run. In finally (not after it) so it
+            # also fires on the early-return failure paths. No-op when unconfigured.
+            if failed:
+                notify_service.notify_run_failed(run)
 
         return run.id
