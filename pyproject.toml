@@ -1,5 +1,5 @@
 [project]
-name = "listige-clone"
+name = "subreddit-sounds"
 version = "0.1.0"
 description = "Self-hosted Reddit-to-Spotify sync app with admin console"
 requires-python = ">=3.11"

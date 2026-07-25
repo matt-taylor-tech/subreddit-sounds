@@ -138,7 +138,7 @@ class SyncService:
         try:
             subreddit = settings_service.get("reddit_subreddit", "MelodicDeathMetal")
             user_agent = settings_service.get(
-                "reddit_user_agent", "web:listige-clone:0.1 (by /u/suiifelse)"
+                "reddit_user_agent", "web:subreddit-sounds:0.1 (by /u/suiifelse)"
             )
             sort = settings_service.get("reddit_sort", "top")
             timeframe = settings_service.get("reddit_timeframe", "week")

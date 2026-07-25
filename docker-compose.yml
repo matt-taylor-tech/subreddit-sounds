@@ -5,7 +5,7 @@ services:
       # Host port; override with `APP_PORT=9000 docker compose up`. Defaults to 8000.
       - "${APP_PORT:-8000}:8000"
     volumes:
-      - listige_data:/app/data
+      - subreddit_sounds_data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
@@ -15,4 +15,4 @@ services:
       start_period: 10s
 
 volumes:
-  listige_data:
+  subreddit_sounds_data:

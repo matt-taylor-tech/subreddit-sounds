@@ -1,237 +1,135 @@
-# Listige Clone
+# Subreddit Sounds
 
-Self-hosted Reddit-to-Spotify sync app with a built-in admin console.
+**Turn what a music subreddit is posting into a Spotify playlist that stays fresh on its own.**
 
-## Current Implementation Status
+Point Subreddit Sounds at a subreddit and it keeps a Spotify playlist stocked
+with the tracks that community is sharing — refreshed automatically every day.
+It's self-hosted: one Docker container, a SQLite file, and a small web admin
+console. No config files and no API keys on disk — everything is set up in the
+browser on first run.
 
-This initial implementation includes:
+## What it does
 
-- FastAPI app with server-rendered admin UI
-- Single local admin login
-- SQLite persistence
-- Daily in-app scheduler configured for `07:00 America/New_York`
-- Manual run trigger + run history pages
-- Docker single-container deployment path
+Once a day (default 07:00, configurable), Subreddit Sounds:
 
-Spotify and Reddit API integration logic is scaffolded and ready for the next implementation pass.
+1. **Pulls the top posts** from your chosen subreddit(s) — via Reddit's public
+   RSS feed, or the OAuth API if you add credentials.
+2. **Resolves each post to a Spotify track.** Direct Spotify links are taken
+   as-is; YouTube links get their title and artist parsed (using the channel as
+   an artist hint) and searched on Spotify. Results are filtered by genre and
+   minimum duration, and full-album links are skipped.
+3. *(Optional)* also pulls **Bandcamp** new releases by tag.
+4. **Reconciles the playlist to the latest N tracks** (default 25) — adds the
+   new finds and trims the oldest, so you get a rolling, always-current playlist
+   instead of an ever-growing dump.
 
-## Quick Start (Local)
+Everything runs through a web admin console: a first-run **setup wizard**, a
+manual **Run now** button, and **run history** with full per-run logs.
 
-1. Create and activate a virtual environment.
-1. Install dependencies:
+## How it works
 
-```bash
-pip install -r requirements.txt
+```
+subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks ──▶ reconcile playlist
+(Reddit RSS/API)   (+ Bandcamp tags)   (direct links + YouTube matching)   (add new / trim to cap)
 ```
 
-1. Start app (nothing to configure — a secret key is auto-generated on first run):
+- **Scheduler:** an in-app daily cron job (APScheduler). Time and timezone are
+  set in the wizard (default 07:00 `America/New_York`).
+- **Storage:** SQLite in a mounted volume. Your Reddit/Spotify credentials and
+  all settings live in the database, never in the repo or image.
+- **Sessions:** the cookie-signing key is auto-generated and persisted to the
+  data volume on first run — nothing to configure.
+
+## Requirements
+
+- A working **Docker** install. New to Docker? See Docker's
+  [official install docs](https://docs.docker.com/engine/install/) or
+  DigitalOcean's
+  [How To Install and Use Docker](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-22-04)
+  guide first.
+- A **Spotify** account (you connect it from the admin console).
+- Optionally, **Reddit API** credentials for higher rate limits (the public RSS
+  feed works without them).
+
+## Quick start (Docker Compose)
 
 ```bash
-uvicorn app.main:app --reload
+git clone https://github.com/matt-taylor-tech/subreddit-sounds.git
+cd subreddit-sounds
+docker compose up -d --build
 ```
 
-1. Open `http://localhost:8000/` and complete the first-run setup wizard.
+Then open `http://localhost:8000/` and complete the setup wizard.
 
-## Deploying on Your Debian Server (First Time)
+To serve on a different host port: `APP_PORT=9000 docker compose up -d --build`.
 
-This walks through every step from a fresh SSH session to a running container.
-No prior Docker experience required.
-
-### Step 1 — SSH into your Debian server
-
-From your Windows machine open a terminal and connect:
+## Quick start (docker run)
 
 ```bash
-ssh youruser@YOUR_SERVER_IP
-```
-
----
-
-### Step 2 — Install Docker (if not already installed)
-
-```bash
-sudo apt update
-sudo apt install -y ca-certificates curl gnupg
-
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/debian/gpg \
-  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io
-```
-
-Verify Docker is running:
-
-```bash
-sudo docker run hello-world
-```
-
-Optionally allow your user to run Docker without `sudo` (requires logout/login to take effect):
-
-```bash
-sudo usermod -aG docker $USER
-```
-
----
-
-### Step 3 — Clone the repo
-
-The repository is public, so no authentication is needed:
-
-```bash
-cd ~
-git clone https://github.com/matt-taylor-tech/ListigeClone.git
-cd ListigeClone
-```
-
----
-
-### Step 4 — Create the data directory
-
-This is where the database and logs are stored. It lives outside the
-container so data survives restarts and upgrades.
-
-```bash
-mkdir -p ~/ListigeClone/data
-```
-
----
-
-### Step 5 — Build the Docker image
-
-This reads the `Dockerfile` and packages the app into a self-contained image.
-It only needs to run once (and again after updates).
-
-```bash
-cd ~/ListigeClone
-docker build -t listige-clone:0.1.0 .
-```
-
-You will see output as each layer is built. It takes 1–3 minutes the first time.
-
----
-
-### Step 6 — Run the container
-
-```bash
+docker build -t subreddit-sounds .
 docker run -d \
-  --name listige-clone \
+  --name subreddit-sounds \
   --restart unless-stopped \
   -p 8000:8000 \
-  -v ~/ListigeClone/data:/app/data \
-  listige-clone:0.1.0
+  -v subreddit-sounds-data:/app/data \
+  subreddit-sounds
 ```
 
-What each flag does:
+Change the left side of `-p` (e.g. `-p 9000:8000`) to serve on another port.
 
-| Flag | Purpose |
-|------|---------|
-| `-d` | Run in background (detached) |
-| `--name listige-clone` | Give it a memorable name |
-| `--restart unless-stopped` | Auto-restart after reboots |
-| `-p 8000:8000` | Expose port 8000 on the host |
-| `-v .../data:/app/data` | Mount host folder so the DB (and secret key) persist |
+## First-run setup
 
-To run on a different host port, change the left side of `-p`, e.g. `-p 9000:8000`.
+1. Open the app — the first visit redirects you to `/setup`.
+2. Create your **admin login**.
+3. Connect **Spotify** and paste the target **playlist ID** (the id from the
+   playlist's share URL).
+4. Choose your **subreddit**, **schedule**, and any **filters** (genre, minimum
+   track length, playlist cap).
+5. Hit **Run now** to do a first sync, or wait for the daily job.
 
----
+That's it — no `.env`, no secrets on disk.
 
-### Step 7 — Open the admin console
+## Configuration
 
-In your browser go to:
+All configuration is done in the admin console and stored in the database:
 
-```
-http://YOUR_SERVER_IP:8000/login
-```
+- **Source:** subreddit, sort (`top`), and timeframe (`week`); optional Bandcamp tags.
+- **Reddit credentials:** optional; unlocks the OAuth API instead of public RSS.
+- **Matching filters:** genre filter, minimum track duration, playlist size cap.
+- **Schedule:** daily run time and timezone, or disable the schedule entirely.
 
-The first visit redirects you to `/setup`, where you create the admin login
-and enter your Reddit/Spotify credentials. After that, log in with the admin
-username and password you chose there.
+The only optional environment variables (rarely needed) are `APP_PORT`,
+`DATABASE_URL`, and `SECRET_KEY` — pass them with `-e` / `environment:` if you
+want to override a default.
 
----
+## Data & backups
 
-## Day-to-Day Operations
-
-### Check if the container is running
+Everything persistent lives in the data volume (`/app/data`): the SQLite
+database and the auto-generated secret key. Back the database up regularly:
 
 ```bash
-docker ps
+docker cp subreddit-sounds:/app/data/subreddit-sounds.db ./subreddit-sounds-backup-$(date +%Y%m%d).db
 ```
 
-### View logs
-
-```bash
-docker logs listige-clone
-# Follow live:
-docker logs -f listige-clone
-```
-
-### Stop / start
-
-```bash
-docker stop listige-clone
-docker start listige-clone
-```
-
-### Updating to a new version
-
-```bash
-cd ~/ListigeClone
-git pull
-docker build -t listige-clone:latest .
-docker stop listige-clone
-docker rm listige-clone
-docker run -d \
-  --name listige-clone \
-  --restart unless-stopped \
-  -p 8000:8000 \
-  -v ~/ListigeClone/data:/app/data \
-  listige-clone:latest
-```
-
-Your database and secret key in `~/ListigeClone/data/` are untouched across updates.
-
-### Back up the database
-
-```bash
-cp ~/ListigeClone/data/listige.db ~/listige-backup-$(date +%Y%m%d).db
-```
-
----
-
-## Running on a different port
-
-The container always listens on `8000` internally; you choose the **host** port.
-
-- **docker run:** change the left side of `-p`, e.g. `-p 9000:8000` serves it on host port 9000.
-- **docker compose:** run with `APP_PORT` set, e.g. `APP_PORT=9000 docker compose up -d`; it defaults to 8000.
+Your data is untouched across image rebuilds and upgrades.
 
 ## Security
 
-- The session-signing key is auto-generated and persisted to the data volume on
-  first run — no config, no secrets file. Keep the `data/` volume private, since
-  it holds that key and the database.
-- If you'd rather manage the key yourself, pass `SECRET_KEY` as an environment
-  variable (e.g. `docker run -e SECRET_KEY=...`); with `ENVIRONMENT=production`
-  the app refuses to start on a known placeholder value.
-- Set the admin credentials during the first-run setup wizard.
-- For internet-facing access, put it behind Nginx with a free TLS cert via
-  Certbot rather than exposing port 8000 directly.
-- All API secrets live in the database volume, never in the repo or image.
+- The session key is auto-generated and persisted on first run — keep the
+  `data/` volume private, since it holds that key and the database.
+- Set your admin credentials in the setup wizard.
+- For internet-facing deployments, put it behind a reverse proxy (e.g. Nginx)
+  with TLS rather than exposing port 8000 directly.
+- All API secrets live in the database volume — never in the repo or image.
 
-## Debian Deployment Notes
-
-- No configuration files to manage — the app runs on defaults plus the setup wizard.
-- Back up `~/ListigeClone/data/listige.db` regularly.
-- Scheduler timezone is set in the setup wizard (default `America/New_York`).
-
-## Tests
+## Development
 
 ```bash
+pip install -r requirements.txt
+uvicorn app.main:app --reload   # nothing to configure; a secret key is generated on first run
 pytest
 ```
+
+## License
+
+[MIT](LICENSE)
