@@ -115,4 +115,28 @@
 
   <button type="submit">Save Settings</button>
 </form>
+
+<div class="card">
+  <h2>Import / Export</h2>
+  {% if imported %}<p style="color: var(--accent);">&#10003; Configuration imported.</p>{% endif %}
+  <p class="muted-small">Back up or move your playlists and global settings as a JSON file.</p>
+
+  <form method="post" action="/admin/settings/export" style="margin-bottom:1rem;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label>
+      <input type="checkbox" name="include_secrets" value="true" />
+      Include secrets (API keys, tokens, admin password hash)
+    </label>
+    <small class="muted-small">Leave off for a safe-to-share file. If checked, the download contains credentials, so store it securely.</small>
+    <div class="mt-sm"><button type="submit">Export settings</button></div>
+  </form>
+
+  <form method="post" action="/admin/settings/import" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label for="import_file">Import a settings file</label><br />
+    <input id="import_file" type="file" name="file" accept="application/json,.json" required />
+    <small class="muted-small">Replaces your current playlists and applies the settings from the file. A file exported without secrets won't restore credentials, so you'll re-connect Spotify afterward.</small>
+    <div class="mt-sm"><button type="submit">Import settings</button></div>
+  </form>
+</div>
 {% endblock %}

@@ -1,9 +1,10 @@
+import json
 import secrets
 from datetime import datetime
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
@@ -14,7 +15,7 @@ from app.csrf import csrf_context, verify_csrf
 from app.curated import curated_context
 from app.db import get_db
 from app.models import Run
-from app.services import reddit_service, settings_service, spotify_service, targets_service
+from app.services import config_io, reddit_service, settings_service, spotify_service, targets_service
 from app.version import version_context
 
 router = APIRouter()
@@ -262,6 +263,49 @@ def settings_save(
         request,
         "settings.html",
         {"settings": _settings_context(), "saved": True},
+    )
+
+
+@router.post("/admin/settings/export")
+def settings_export(
+    request: Request,
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(verify_csrf),
+    include_secrets: str = Form("false"),
+):
+    require_auth(request)
+    data = config_io.export_config(db, include_secrets=include_secrets == "true")
+    body = json.dumps(data, indent=2)
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="subreddit-sounds-settings.json"'},
+    )
+
+
+@router.post("/admin/settings/import")
+def settings_import(
+    request: Request,
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(verify_csrf),
+    file: UploadFile = File(...),
+):
+    require_auth(request)
+    try:
+        data = json.loads(file.file.read())
+        config_io.import_config(db, data)
+    except (ValueError, KeyError, TypeError, UnicodeDecodeError) as exc:
+        return templates.TemplateResponse(
+            request,
+            "settings.html",
+            {"settings": _settings_context(), "saved": False, "error": f"Import failed: {exc}"},
+            status_code=400,
+        )
+    request.app.state.scheduler_manager.reschedule()
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {"settings": _settings_context(), "saved": True, "imported": True},
     )
 
 
