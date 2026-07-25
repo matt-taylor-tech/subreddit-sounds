@@ -1,0 +1,5 @@
+# Development dependencies: production runtime plus test + lint tooling.
+# The Docker image installs only requirements.txt, so these stay out of it.
+-r requirements.txt
+pytest==9.1.1
+ruff==0.16.0

@@ -191,10 +191,14 @@ Your data is untouched across image rebuilds and upgrades.
 ## Development
 
 ```bash
-pip install -r requirements.txt
-uvicorn app.main:app --reload   # nothing to configure; a secret key is generated on first run
+pip install -r requirements-dev.txt   # runtime deps + pytest and ruff
+uvicorn app.main:app --reload          # nothing to configure; a secret key is generated on first run
 pytest
+ruff check . && ruff format --check .
 ```
+
+The production image installs only `requirements.txt`; `requirements-dev.txt`
+adds the test and lint tooling on top for local development and CI.
 
 ## License
 
