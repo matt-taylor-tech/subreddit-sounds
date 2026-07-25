@@ -345,9 +345,7 @@ def targets_list(request: Request, db: Session = Depends(get_db)):
     targets = targets_service.list_targets(db)
     mgr = getattr(request.app.state, "scheduler_manager", None)
     next_runs = mgr.next_runs() if mgr else {}
-    return templates.TemplateResponse(
-        request, "targets.html", {"targets": targets, "next_runs": next_runs}
-    )
+    return templates.TemplateResponse(request, "targets.html", {"targets": targets, "next_runs": next_runs})
 
 
 @router.get("/admin/targets/new")
