@@ -5,6 +5,7 @@
 <div class="card">
   <h2>Manual Run</h2>
   <form action="/admin/run" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <label>
       <input type="checkbox" name="dry_run" value="true" />
       Dry run (fetch Reddit + show what would change, no Spotify write)

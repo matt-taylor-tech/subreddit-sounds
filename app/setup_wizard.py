@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Form, Request, status
+from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth import hash_password
+from app.csrf import csrf_context, verify_csrf
 from app.services import settings_service
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory="app/templates", context_processors=[csrf_context])
 
 
 @router.get("/setup")
@@ -19,6 +20,7 @@ def setup_page(request: Request):
 @router.post("/setup")
 def setup_submit(
     request: Request,
+    _csrf: None = Depends(verify_csrf),
     admin_username: str = Form(...),
     admin_password: str = Form(...),
     admin_password_confirm: str = Form(...),

@@ -46,6 +46,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(SetupRedirectMiddleware)
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.secret_key,
+    same_site="lax",  # lax still allows the Spotify OAuth callback redirect
+    https_only=settings.environment.lower() == "production",
+)
 app.include_router(setup_router)
 app.include_router(router)

@@ -9,6 +9,7 @@
   {% endif %}
 
   <form method="post" action="/setup">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
 
     <h2>Admin Account</h2>
     <div class="input-block">
