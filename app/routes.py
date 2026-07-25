@@ -10,13 +10,15 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from app import login_throttle
 from app.auth import is_authenticated, verify_password
+from app.csrf import csrf_context, verify_csrf
 from app.db import get_db
 from app.models import Run
 from app.services import settings_service, spotify_service
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory="app/templates", context_processors=[csrf_context])
 
 
 def require_auth(request: Request) -> None:
@@ -35,12 +37,26 @@ def login_page(request: Request):
 
 
 @router.post("/login")
-def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
+def login_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    _csrf: None = Depends(verify_csrf),
+):
+    locked_for = login_throttle.seconds_remaining(request)
+    if locked_for > 0:
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": f"Too many failed attempts. Try again in {int(locked_for) + 1}s."},
+            status_code=429,
+        )
     stored_hash = settings_service.get("admin_password_hash")
     stored_username = settings_service.get("admin_username")
     if stored_hash and username == stored_username and verify_password(password, stored_hash):
+        login_throttle.reset(request)
         request.session["is_authenticated"] = True
         return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    login_throttle.record_failure(request)
     return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"}, status_code=401)
 
 
@@ -97,7 +113,12 @@ def runs(request: Request, db: Session = Depends(get_db), run_id: int | None = N
 
 
 @router.post("/admin/run")
-def run_now(request: Request, dry_run: bool = Form(False), db: Session = Depends(get_db)):
+def run_now(
+    request: Request,
+    dry_run: bool = Form(False),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(verify_csrf),
+):
     require_auth(request)
     run_id = request.app.state.sync_service.run_once(db=db, trigger_type="manual", dry_run=dry_run)
     return RedirectResponse(url=f"/admin/runs?run_id={run_id}", status_code=status.HTTP_303_SEE_OTHER)
@@ -186,6 +207,7 @@ def settings_page(request: Request):
 @router.post("/admin/settings")
 def settings_save(
     request: Request,
+    _csrf: None = Depends(verify_csrf),
     spotify_client_id: str = Form(...),
     spotify_client_secret: str = Form(""),
     spotify_playlist_id: str = Form(...),
