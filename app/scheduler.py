@@ -52,6 +52,6 @@ class SchedulerManager:
     def _scheduled_job(self) -> None:
         db = SessionLocal()
         try:
-            self.sync_service.run_once(db=db, trigger_type="scheduled", dry_run=False)
+            self.sync_service.run_all(db=db, trigger_type="scheduled", dry_run=False)
         finally:
             db.close()

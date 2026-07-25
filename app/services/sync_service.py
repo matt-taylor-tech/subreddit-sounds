@@ -5,8 +5,15 @@ from threading import Lock
 import httpx
 from sqlalchemy.orm import Session
 
-from app.models import Run
-from app.services import bandcamp_service, notify_service, reddit_service, settings_service, spotify_service
+from app.models import Run, Target
+from app.services import (
+    bandcamp_service,
+    notify_service,
+    reddit_service,
+    settings_service,
+    spotify_service,
+    targets_service,
+)
 from app.services.link_resolver import (
     classify_url,
     derive_artist_from_channel,
@@ -153,13 +160,40 @@ def _fetch_all_posts(
 
 class SyncService:
     def __init__(self) -> None:
-        self._lock = Lock()
+        # One lock per target id: distinct playlists can sync concurrently, but a
+        # given target never double-writes (cron + manual, or two overlapping crons).
+        self._locks: dict[int, Lock] = {}
+        self._locks_guard = Lock()
 
-    def run_once(self, db: Session, trigger_type: str, dry_run: bool = False) -> int | None:
-        if not self._lock.acquire(blocking=False):
+    def _lock_for(self, target_id: int) -> Lock:
+        with self._locks_guard:
+            lock = self._locks.get(target_id)
+            if lock is None:
+                lock = Lock()
+                self._locks[target_id] = lock
+            return lock
+
+    def run_all(self, db: Session, trigger_type: str, dry_run: bool = False) -> list[int]:
+        """Sync every enabled target in turn; returns the created run ids."""
+        run_ids: list[int] = []
+        for target in targets_service.list_targets(db, enabled_only=True):
+            run_id = self.run_once(db, target, trigger_type, dry_run=dry_run)
+            if run_id is not None:
+                run_ids.append(run_id)
+        return run_ids
+
+    def run_once(self, db: Session, target: Target, trigger_type: str, dry_run: bool = False) -> int | None:
+        lock = self._lock_for(target.id or 0)
+        if not lock.acquire(blocking=False):
             return None
 
-        run = Run(trigger_type=trigger_type, dry_run=dry_run, status="running")
+        run = Run(
+            trigger_type=trigger_type,
+            dry_run=dry_run,
+            status="running",
+            target_id=target.id,
+            target_label=target.name,
+        )
         db.add(run)
         db.commit()
         db.refresh(run)
@@ -170,19 +204,20 @@ class SyncService:
             lines.append(msg)
 
         try:
-            subreddits = reddit_service.parse_subreddits(settings_service.get("reddit_subreddit", "MelodicDeathMetal"))
+            subreddits = reddit_service.parse_subreddits(target.subreddits)
             user_agent = settings_service.get("reddit_user_agent", "web:subreddit-sounds:0.1 (by /u/suiifelse)")
             sort = settings_service.get("reddit_sort", "top")
             timeframe = settings_service.get("reddit_timeframe", "week")
-            sync_cap = int(settings_service.get("sync_cap", "25"))
-            playlist_id = settings_service.get("spotify_playlist_id")
-            genre_filter = settings_service.get("spotify_genre_filter") or None
+            sync_cap = target.cap
+            playlist_id = target.playlist_id
+            genre_filter = target.genre_filter or None
             min_dur_sec = int(settings_service.get("min_track_duration_sec", "120"))
             min_duration_ms = min_dur_sec * 1000 if min_dur_sec > 0 else None
 
             # --- Reddit ---
             label = f"{sort}/{timeframe}" if sort == "top" else sort
             auth_label = "OAuth API" if reddit_service.has_credentials() else "public RSS"
+            log(f"[{target.name}] playlist {playlist_id}")
             log(f"Fetching {len(subreddits)} subreddit(s) [{label}] via {auth_label}: {', '.join(subreddits)}")
             posts = _fetch_all_posts(subreddits, user_agent, sort, timeframe, log)
             log(f"Fetched {len(posts)} posts total — resolving links...")
@@ -203,12 +238,9 @@ class SyncService:
             log(f"Resolved {len(new_track_ids)} unique track(s) from Reddit ({low_conf} via YouTube title search)")
 
             # --- Bandcamp ---
-            bandcamp_enabled = settings_service.get("bandcamp_enabled", "false") == "true"
+            bandcamp_enabled = target.bandcamp_enabled
             if bandcamp_enabled:
-                enabled_tags_raw = settings_service.get("bandcamp_enabled_tags", "")
-                if not enabled_tags_raw:
-                    # fall back to legacy single-tag setting
-                    enabled_tags_raw = settings_service.get("bandcamp_tag", "melodic-death-metal")
+                enabled_tags_raw = target.bandcamp_enabled_tags or target.bandcamp_tags
                 enabled_tags = [t.strip() for t in enabled_tags_raw.split(",") if t.strip()]
                 bandcamp_seen = set(new_track_ids)
                 for tag in enabled_tags:
@@ -234,11 +266,11 @@ class SyncService:
             log(f"Playlist currently has {len(current_ids)} track(s)")
 
             # --- Block-list (optional): make manual deletions stick ---
-            blocklist_enabled = settings_service.get("blocklist_enabled", "false") == "true"
+            blocklist_enabled = target.blocklist_enabled
             blocked: set[str] = set()
             if blocklist_enabled:
-                blocked = set(_parse_ids(settings_service.get("blocklist_ids", "")))
-                last_desired = _parse_ids(settings_service.get("last_desired_ids", ""))
+                blocked = set(_parse_ids(target.blocklist_ids))
+                last_desired = _parse_ids(target.last_desired_ids)
                 new_track_ids, blocked, newly_blocked = apply_blocklist(
                     new_track_ids, current_ids, last_desired, blocked
                 )
@@ -277,15 +309,13 @@ class SyncService:
                 if not to_add and not to_remove:
                     log("Playlist already up to date — no changes needed")
 
-            # Persist block-list state for next run (real runs only): the growing
-            # block-list, and the desired set used to detect the next deletion.
+            # Persist block-list state onto the target (real runs only): the
+            # growing block-list, and the desired set used to detect the next
+            # deletion. Per-target so playlists never clobber each other's state.
             if blocklist_enabled and not dry_run:
-                settings_service.put_many(
-                    {
-                        "blocklist_ids": ",".join(sorted(blocked)),
-                        "last_desired_ids": ",".join(desired_ids),
-                    }
-                )
+                target.blocklist_ids = ",".join(sorted(blocked))
+                target.last_desired_ids = ",".join(desired_ids)
+                db.add(target)
 
             run.added_count = len(to_add) if not dry_run else 0
             run.removed_count = len(to_remove) if not dry_run else 0
@@ -306,7 +336,7 @@ class SyncService:
             db.add(run)
             db.commit()
             failed = run.status == "failed"
-            self._lock.release()
+            lock.release()
             # Best-effort failure notification, after releasing the lock so a slow
             # webhook can't hold up the next run. In finally (not after it) so it
             # also fires on the early-return failure paths. No-op when unconfigured.

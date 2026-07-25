@@ -23,9 +23,9 @@ class _FakeSync:
     def __init__(self):
         self.calls = []
 
-    def run_once(self, db, trigger_type, dry_run=False):
+    def run_all(self, db, trigger_type, dry_run=False):
         self.calls.append((trigger_type, dry_run))
-        return 123
+        return [123]
 
 
 def _run(monkeypatch, form):
