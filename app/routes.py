@@ -1,5 +1,7 @@
 import secrets
+import time
 from datetime import datetime
+from typing import List
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
@@ -55,9 +57,7 @@ def login_submit(
         request.session["is_authenticated"] = True
         return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
     login_throttle.record_failure(request)
-    return templates.TemplateResponse(
-        "login.html", {"request": request, "error": "Invalid credentials"}, status_code=401
-    )
+    return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"}, status_code=401)
 
 
 @router.get("/logout")
@@ -128,7 +128,6 @@ def run_now(
 # Spotify OAuth
 # ---------------------------------------------------------------------------
 
-
 @router.get("/spotify/authorize")
 def spotify_authorize(request: Request):
     require_auth(request)
@@ -164,7 +163,6 @@ def spotify_callback(
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
-
 
 def _settings_context() -> dict:
     """Build the template context dict from current DB settings."""
@@ -228,7 +226,7 @@ def settings_save(
     sync_minute: int = Form(0),
     bandcamp_enabled: str = Form("false"),
     bc_tag_list: str = Form(""),
-    bc_enabled: list[str] = Form(default=[]),
+    bc_enabled: List[str] = Form(default=[]),
     new_bc_tag: str = Form(""),
 ):
     require_auth(request)

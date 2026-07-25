@@ -1,5 +1,5 @@
-import re
 import time
+import re
 
 import httpx
 
@@ -65,13 +65,11 @@ def exchange_code(code: str, redirect_uri: str) -> None:
         )
         r.raise_for_status()
     data = r.json()
-    settings_service.put_many(
-        {
-            "spotify_access_token": data["access_token"],
-            "spotify_refresh_token": data["refresh_token"],
-            "spotify_token_expiry": str(time.time() + data["expires_in"]),
-        }
-    )
+    settings_service.put_many({
+        "spotify_access_token": data["access_token"],
+        "spotify_refresh_token": data["refresh_token"],
+        "spotify_token_expiry": str(time.time() + data["expires_in"]),
+    })
 
 
 def get_playlist_name(playlist_id: str) -> str:
@@ -116,7 +114,7 @@ def add_tracks(playlist_id: str, track_ids: list[str]) -> None:
             r = client.post(
                 f"{_API}/playlists/{playlist_id}/tracks",
                 headers={"Authorization": f"Bearer {token}"},
-                json={"uris": uris[i : i + 100], "position": 0},
+                json={"uris": uris[i:i + 100], "position": 0},
             )
             r.raise_for_status()
 
@@ -266,7 +264,7 @@ def remove_tracks(playlist_id: str, track_ids: list[str]) -> None:
     token = get_access_token()
     with httpx.Client() as client:
         for i in range(0, len(track_ids), 100):
-            batch = [{"uri": f"spotify:track:{tid}"} for tid in track_ids[i : i + 100]]
+            batch = [{"uri": f"spotify:track:{tid}"} for tid in track_ids[i:i + 100]]
             r = client.request(
                 "DELETE",
                 f"{_API}/playlists/{playlist_id}/tracks",

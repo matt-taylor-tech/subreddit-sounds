@@ -12,7 +12,7 @@ def _data_dir_from_db_url(db_url: str) -> Path:
     """Best-effort directory of the SQLite database, for co-locating the key."""
     prefix = "sqlite:///"
     if db_url.startswith(prefix):
-        db_path = db_url[len(prefix) :]
+        db_path = db_url[len(prefix):]
         if db_path and db_path != ":memory:":
             return Path(db_path).parent
     return Path("./data")
