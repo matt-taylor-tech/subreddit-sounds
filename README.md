@@ -156,11 +156,25 @@ docker run -d \
 ```
 
 New images are published automatically for each tagged release. To pin a version
-instead of tracking `latest`, use a tag like `:0.1.0`.
+instead of tracking `latest`, use a tag like `:0.1.1`.
+
+**Docker Compose (prebuilt image):** `pull` fetches the new release, and
+`up -d` recreates the container with it.
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+To pin a version: `TAG=0.1.1 docker compose up -d`.
+
+Note that `docker pull` on its own never changes a *running* container, with or
+without Compose: you always have to recreate it, which is what `up -d` does once
+the new image is present.
 
 Prefer to build from source? Use one of the options below.
 
-**Docker Compose:**
+**Docker Compose (from source):**
 
 ```bash
 git pull

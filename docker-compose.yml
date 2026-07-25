@@ -1,5 +1,12 @@
 services:
   app:
+    # Named image, so `docker compose pull` actually fetches the published
+    # release. Without this key Compose only ever built locally, which meant
+    # pulling the prebuilt image had no effect on a Compose deployment and an
+    # "update" silently kept running the old code.
+    # Pin a version with `TAG=0.1.1 docker compose up -d`; defaults to latest.
+    image: ghcr.io/matt-taylor-tech/subreddit-sounds:${TAG:-latest}
+    # Kept so `docker compose up -d --build` still builds from this checkout.
     build: .
     ports:
       # Host port; override with `APP_PORT=9000 docker compose up`. Defaults to 8000.
