@@ -28,12 +28,13 @@
     <h2>Reddit</h2>
     <p>Posts are read from Reddit's public RSS feed — no API key required. OAuth credentials are optional (see below).</p>
     <div class="input-block">
-      <label for="reddit_subreddit">Subreddit (without r/)</label><br />
+      <label for="reddit_subreddit">Subreddit(s) (without r/)</label><br />
       <input id="reddit_subreddit" name="reddit_subreddit" list="subreddit_options"
              placeholder="pick a suggestion or type any subreddit" required />
       <datalist id="subreddit_options">
         {% for sub in subreddit_suggestions %}<option value="{{ sub }}"></option>{% endfor %}
       </datalist>
+      <small class="muted-small">Separate multiple subreddits with commas (e.g. <code>Metal, postrock, jazz</code>); all feed the one playlist. Each is fetched separately and a bad one is skipped.</small>
     </div>
     <div class="row">
       <div class="input-block flex-1">

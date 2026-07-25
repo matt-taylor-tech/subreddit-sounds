@@ -222,6 +222,86 @@ def test_normalize_subreddit(raw, expected):
     assert reddit_service.normalize_subreddit(raw) == expected
 
 
+# --- parse_subreddits --------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("Metal", ["Metal"]),  # single value, backward compatible
+        ("a, b ,c", ["a", "b", "c"]),
+        ("r/a, /r/B", ["a", "B"]),  # prefixes stripped per item
+        ("a, A, a", ["a"]),  # case-insensitive dedup, order preserved
+        ("sub1+sub2", ["sub1+sub2"]),  # Reddit multi kept intact as one entry
+        ("", []),
+        ("  ,  , ", []),
+    ],
+)
+def test_parse_subreddits(raw, expected):
+    assert reddit_service.parse_subreddits(raw) == expected
+
+
+# --- request pacing (issue #33) ----------------------------------------------
+
+
+def test_request_delay_default_without_credentials(settings):
+    assert reddit_service.request_delay_seconds() == 2.0
+
+
+def test_request_delay_capped_with_credentials(settings):
+    settings["reddit_client_id"] = "cid"
+    settings["reddit_client_secret"] = "secret"
+    settings["reddit_request_delay_sec"] = "5"
+    # OAuth has higher limits, so the delay is capped low.
+    assert reddit_service.request_delay_seconds() == 1.0
+
+
+def test_request_delay_invalid_falls_back(settings):
+    settings["reddit_request_delay_sec"] = "not-a-number"
+    assert reddit_service.request_delay_seconds() == 2.0
+
+
+def test_pace_next_call_sleeps_and_logs(settings, monkeypatch):
+    slept: list = []
+    monkeypatch.setattr(reddit_service.time, "sleep", lambda s: slept.append(s))
+    logs: list = []
+    reddit_service.pace_next_call(logs.append)
+    assert len(slept) == 1 and slept[0] >= 2.0
+    assert any("pacing" in m for m in logs)
+
+
+def test_pace_next_call_noop_when_delay_zero(settings, monkeypatch):
+    settings["reddit_request_delay_sec"] = "0"
+    slept: list = []
+    monkeypatch.setattr(reddit_service.time, "sleep", lambda s: slept.append(s))
+    reddit_service.pace_next_call()
+    assert slept == []
+
+
+# --- first_definitive_problem ------------------------------------------------
+
+
+def test_first_definitive_problem_returns_first_bad(monkeypatch):
+    results = {
+        "good": reddit_service.SubredditCheck(True, "ok", "ok", definitive=True),
+        "bad": reddit_service.SubredditCheck(False, "not_found", "r/bad 404", definitive=True),
+    }
+    monkeypatch.setattr(reddit_service, "check_subreddit", lambda name, ua: results[name])
+
+    problem = reddit_service.first_definitive_problem(["good", "bad"], UA)
+    assert problem is not None and problem.status == "not_found"
+
+
+def test_first_definitive_problem_none_when_all_ok_or_ambiguous(monkeypatch):
+    results = {
+        "good": reddit_service.SubredditCheck(True, "ok", "ok", definitive=True),
+        "blocked": reddit_service.SubredditCheck(False, "forbidden", "ip block", definitive=False),
+    }
+    monkeypatch.setattr(reddit_service, "check_subreddit", lambda name, ua: results[name])
+
+    assert reddit_service.first_definitive_problem(["good", "blocked"], UA) is None
+
+
 # --- check_subreddit ---------------------------------------------------------
 
 

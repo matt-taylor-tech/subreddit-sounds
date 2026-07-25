@@ -234,22 +234,32 @@ def settings_save(
 ):
     require_auth(request)
 
-    # Verify the subreddit only when it actually changed — Reddit rate-limits the
-    # keyless RSS feed, so we don't spend a request when the user edited some
-    # other setting. A rate-limited/ambiguous result is non-definitive and never
-    # blocks the save (see reddit_service.check_subreddit).
-    new_sub = reddit_service.normalize_subreddit(reddit_subreddit)
-    current_sub = reddit_service.normalize_subreddit(settings_service.get("reddit_subreddit", ""))
-    if new_sub != current_sub:
+    # Verify subreddits, but only the newly-added ones — Reddit rate-limits the
+    # keyless RSS feed, so we don't re-check subreddits that were already saved.
+    # A rate-limited/ambiguous result is non-definitive and never blocks the save
+    # (see reddit_service.check_subreddit).
+    new_subs = reddit_service.parse_subreddits(reddit_subreddit)
+    if not new_subs:
+        ctx = _settings_context()
+        ctx["reddit_subreddit"] = reddit_subreddit
+        return templates.TemplateResponse(
+            request,
+            "settings.html",
+            {"settings": ctx, "saved": False, "error": "Enter at least one subreddit."},
+            status_code=400,
+        )
+    current_subs = {s.lower() for s in reddit_service.parse_subreddits(settings_service.get("reddit_subreddit", ""))}
+    added_subs = [s for s in new_subs if s.lower() not in current_subs]
+    if added_subs:
         user_agent = reddit_user_agent.strip() or settings_service.get("reddit_user_agent")
-        check = reddit_service.check_subreddit(new_sub, user_agent)
-        if check.definitive and not check.ok:
+        problem = reddit_service.first_definitive_problem(added_subs, user_agent)
+        if problem:
             ctx = _settings_context()
             ctx["reddit_subreddit"] = reddit_subreddit  # keep what the user typed
             return templates.TemplateResponse(
                 request,
                 "settings.html",
-                {"settings": ctx, "saved": False, "error": check.message},
+                {"settings": ctx, "saved": False, "error": problem.message},
                 status_code=400,
             )
 
@@ -265,7 +275,7 @@ def settings_save(
         "spotify_playlist_id": spotify_playlist_id.strip(),
         "spotify_redirect_uri": spotify_redirect_uri.strip(),
         "spotify_genre_filter": spotify_genre_filter.strip(),
-        "reddit_subreddit": new_sub,
+        "reddit_subreddit": ", ".join(new_subs),
         "reddit_sort": reddit_sort,
         "reddit_timeframe": reddit_timeframe,
         "reddit_client_id": reddit_client_id.strip(),

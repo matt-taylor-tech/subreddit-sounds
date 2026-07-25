@@ -80,6 +80,71 @@ def normalize_subreddit(subreddit: str) -> str:
     return name.strip().strip("/")
 
 
+def parse_subreddits(raw: str) -> list[str]:
+    """Split a comma-separated subreddit field into a normalized, deduped list.
+
+    Backward compatible with a single value. A Reddit ``a+b`` multi are kept
+    intact as one entry (Reddit resolves the ``+`` server-side into a combined
+    listing), so power users can still use that shortcut within a list item.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for part in raw.split(","):
+        name = normalize_subreddit(part)
+        key = name.lower()
+        if name and key not in seen:
+            seen.add(key)
+            out.append(name)
+    return out
+
+
+def request_delay_seconds() -> float:
+    """Politeness delay to insert *between* consecutive Reddit calls.
+
+    Reddit's keyless RSS feed is aggressively rate-limited, so when a run fans
+    out across several subreddits we space the requests out. The OAuth API has
+    much higher limits, so the delay is capped low when credentials exist.
+    """
+    try:
+        delay = float(settings_service.get("reddit_request_delay_sec", "2"))
+    except ValueError:
+        delay = 2.0
+    if has_credentials():
+        delay = min(delay, 1.0)
+    return max(0.0, delay)
+
+
+def pace_next_call(log: Callable[[str], None] | None = None) -> None:
+    """Sleep the inter-request politeness delay before another Reddit call.
+
+    A no-op when the configured delay is zero (or a single request is being
+    made). Callers invoke this *between* fetches, not before the first.
+    """
+    log = log or _noop_log
+    delay = request_delay_seconds()
+    if delay <= 0:
+        return
+    wait = delay + random.uniform(0, 0.5)  # jitter
+    log(f"  pacing {wait:.1f}s before next Reddit request (rate-limit courtesy)")
+    time.sleep(wait)
+
+
+def first_definitive_problem(subreddits: list[str], user_agent: str) -> SubredditCheck | None:
+    """Return the first subreddit that definitively fails verification, else None.
+
+    Used at save time to hard-block a config where any listed subreddit clearly
+    doesn't exist or isn't readable. Ambiguous results (rate-limit / IP block)
+    are skipped, matching ``check_subreddit``'s single-sub behavior. No pacing:
+    saving is a rare human action and responsiveness matters; callers minimize
+    the call count by only verifying newly-added subreddits.
+    """
+    for name in subreddits:
+        result = check_subreddit(name, user_agent)
+        if result.definitive and not result.ok:
+            return result
+    return None
+
+
 def check_subreddit(subreddit: str, user_agent: str) -> SubredditCheck:
     """Best-effort check that a single subreddit exists and is readable.
 

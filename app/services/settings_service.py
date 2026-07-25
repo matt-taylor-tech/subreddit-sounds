@@ -24,6 +24,7 @@ DEFAULTS: dict[str, str] = {
     "reddit_subreddit": "MelodicDeathMetal",
     "reddit_sort": "top",
     "reddit_timeframe": "week",
+    "reddit_request_delay_sec": "2",
     "sync_enabled": "true",
     "spotify_redirect_uri": "http://127.0.0.1:8000/callback",
     "min_track_duration_sec": "120",

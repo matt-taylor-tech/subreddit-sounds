@@ -119,6 +119,33 @@ def _collect_bandcamp_tracks(
     return track_ids, len(track_ids)
 
 
+def _fetch_all_posts(
+    subreddits: list[str],
+    user_agent: str,
+    sort: str,
+    timeframe: str,
+    log: Callable[[str], None],
+) -> list[dict]:
+    """Fetch each subreddit in turn, concatenating posts.
+
+    One failing subreddit is logged and skipped rather than aborting the whole
+    run (mirrors the Bandcamp per-tag handling). Requests are paced between
+    subreddits to respect Reddit's rate limits. Track-level dedup happens later
+    in ``_collect_tracks``, so overlapping posts across subreddits are fine.
+    """
+    all_posts: list[dict] = []
+    for i, sub in enumerate(subreddits):
+        if i > 0:
+            reddit_service.pace_next_call(log)
+        try:
+            posts = reddit_service.fetch_posts(sub, user_agent, sort, timeframe, log=log)
+            log(f"  r/{sub}: fetched {len(posts)} post(s)")
+            all_posts.extend(posts)
+        except Exception as exc:
+            log(f"  [r/{sub}] ERROR: {exc} — skipping this subreddit")
+    return all_posts
+
+
 class SyncService:
     def __init__(self) -> None:
         self._lock = Lock()
@@ -138,7 +165,7 @@ class SyncService:
             lines.append(msg)
 
         try:
-            subreddit = settings_service.get("reddit_subreddit", "MelodicDeathMetal")
+            subreddits = reddit_service.parse_subreddits(settings_service.get("reddit_subreddit", "MelodicDeathMetal"))
             user_agent = settings_service.get("reddit_user_agent", "web:subreddit-sounds:0.1 (by /u/suiifelse)")
             sort = settings_service.get("reddit_sort", "top")
             timeframe = settings_service.get("reddit_timeframe", "week")
@@ -150,10 +177,10 @@ class SyncService:
 
             # --- Reddit ---
             label = f"{sort}/{timeframe}" if sort == "top" else sort
-            log(f"Fetching r/{subreddit} [{label}] (limit=100)")
             auth_label = "OAuth API" if reddit_service.has_credentials() else "public RSS"
-            posts = reddit_service.fetch_posts(subreddit, user_agent, sort, timeframe, log=log)
-            log(f"Fetched {len(posts)} posts via {auth_label} — resolving links...")
+            log(f"Fetching {len(subreddits)} subreddit(s) [{label}] via {auth_label}: {', '.join(subreddits)}")
+            posts = _fetch_all_posts(subreddits, user_agent, sort, timeframe, log)
+            log(f"Fetched {len(posts)} posts total — resolving links...")
 
             if not spotify_service.is_connected():
                 log("Spotify not connected — visit the dashboard to authorise")
