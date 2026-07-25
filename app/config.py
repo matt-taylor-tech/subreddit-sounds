@@ -43,12 +43,14 @@ def _load_or_create_secret_key(key_file: Path) -> str:
 class Settings(BaseSettings):
     """Boot-time settings that must exist before the database is available.
 
-    Everything else (API credentials, sync options, admin account) is stored
-    in the database and managed via the first-run setup wizard. With no `.env`
-    at all, the app boots on sane defaults and auto-generates a secret key.
+    There is no `.env` file: the app runs on sane defaults and auto-generates a
+    secret key. Everything else (API credentials, sync options, admin account)
+    is stored in the database and managed via the first-run setup wizard. The
+    few fields below can still be overridden with real environment variables
+    (e.g. ``docker run -e DATABASE_URL=...``) if needed.
     """
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
 
     app_name: str = Field(default="Listige Clone", alias="APP_NAME")
     environment: str = Field(default="development", alias="ENVIRONMENT")

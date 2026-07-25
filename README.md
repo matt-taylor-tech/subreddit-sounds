@@ -24,7 +24,7 @@ Spotify and Reddit API integration logic is scaffolded and ready for the next im
 pip install -r requirements.txt
 ```
 
-1. Start app (no `.env` needed — a secret key is auto-generated on first run):
+1. Start app (nothing to configure — a secret key is auto-generated on first run):
 
 ```bash
 uvicorn app.main:app --reload
@@ -91,27 +91,7 @@ cd ListigeClone
 
 ---
 
-### Step 4 — (Optional) `.env` file
-
-**You can skip this step.** With no `.env` at all, the app boots on sane
-defaults and auto-generates a persistent session-signing key in the data
-volume on first run. All API credentials (Reddit, Spotify), the admin login,
-and sync options are entered later in the web setup wizard and stored in the
-database.
-
-Create a `.env` only if you want to override a default — for example a custom
-host port, or managing the secret key yourself:
-
-```bash
-cp .env.example .env
-nano .env   # everything is commented out; uncomment only what you need
-```
-
-> **Security:** `.env` is in `.gitignore` so it is never committed.
-
----
-
-### Step 5 — Create the data directory
+### Step 4 — Create the data directory
 
 This is where the database and logs are stored. It lives outside the
 container so data survives restarts and upgrades.
@@ -122,7 +102,7 @@ mkdir -p ~/ListigeClone/data
 
 ---
 
-### Step 6 — Build the Docker image
+### Step 5 — Build the Docker image
 
 This reads the `Dockerfile` and packages the app into a self-contained image.
 It only needs to run once (and again after updates).
@@ -136,7 +116,7 @@ You will see output as each layer is built. It takes 1–3 minutes the first tim
 
 ---
 
-### Step 7 — Run the container
+### Step 6 — Run the container
 
 ```bash
 docker run -d \
@@ -157,11 +137,11 @@ What each flag does:
 | `-p 8000:8000` | Expose port 8000 on the host |
 | `-v .../data:/app/data` | Mount host folder so the DB (and secret key) persist |
 
-> Only if you created an optional `.env` (Step 4), add `--env-file ~/ListigeClone/.env` to the command.
+To run on a different host port, change the left side of `-p`, e.g. `-p 9000:8000`.
 
 ---
 
-### Step 8 — Open the admin console
+### Step 7 — Open the admin console
 
 In your browser go to:
 
@@ -229,15 +209,16 @@ cp ~/ListigeClone/data/listige.db ~/listige-backup-$(date +%Y%m%d).db
 The container always listens on `8000` internally; you choose the **host** port.
 
 - **docker run:** change the left side of `-p`, e.g. `-p 9000:8000` serves it on host port 9000.
-- **docker compose:** set `APP_PORT` in `.env` (e.g. `APP_PORT=9000`); it defaults to 8000.
+- **docker compose:** run with `APP_PORT` set, e.g. `APP_PORT=9000 docker compose up -d`; it defaults to 8000.
 
 ## Security
 
 - The session-signing key is auto-generated and persisted to the data volume on
-  first run — no manual step. Keep the `data/` volume private, since it holds
-  that key and the database.
-- If you'd rather manage the key yourself, set `SECRET_KEY` in `.env`; with
-  `ENVIRONMENT=production` the app refuses to start on a known placeholder value.
+  first run — no config, no secrets file. Keep the `data/` volume private, since
+  it holds that key and the database.
+- If you'd rather manage the key yourself, pass `SECRET_KEY` as an environment
+  variable (e.g. `docker run -e SECRET_KEY=...`); with `ENVIRONMENT=production`
+  the app refuses to start on a known placeholder value.
 - Set the admin credentials during the first-run setup wizard.
 - For internet-facing access, put it behind Nginx with a free TLS cert via
   Certbot rather than exposing port 8000 directly.
@@ -245,7 +226,7 @@ The container always listens on `8000` internally; you choose the **host** port.
 
 ## Debian Deployment Notes
 
-- `.env` is optional; if you create one, it's already outside version control via `.gitignore`.
+- No configuration files to manage — the app runs on defaults plus the setup wizard.
 - Back up `~/ListigeClone/data/listige.db` regularly.
 - Scheduler timezone is set in the setup wizard (default `America/New_York`).
 

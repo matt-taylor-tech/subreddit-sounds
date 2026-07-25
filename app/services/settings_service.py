@@ -2,10 +2,10 @@
 
 All user-configurable settings (API credentials, sync options, admin account)
 are persisted in the ``app_settings`` table so they can be managed via the
-setup wizard and the admin console rather than requiring manual .env edits.
+setup wizard and the admin console rather than any on-disk config file.
 
-Only ``SECRET_KEY`` and ``DATABASE_URL`` must be set in the environment
-before the app starts.
+Nothing needs to be set before the app starts: it boots on defaults and
+auto-generates its secret key (see ``app.config``).
 """
 
 from __future__ import annotations
