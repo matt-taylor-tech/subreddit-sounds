@@ -22,6 +22,7 @@
     <thead>
       <tr>
         <th>ID</th>
+        <th>Playlist</th>
         <th>Status</th>
         <th>Trigger</th>
         <th>Dry Run</th>
@@ -36,6 +37,7 @@
       {% for run in runs %}
       <tr{% if highlight_run_id and run.id == highlight_run_id %} style="background:var(--card-highlight, #2a3a2a);"{% endif %}>
         <td>{{ run.id }}</td>
+        <td>{{ run.target_label or "-" }}</td>
         <td>{{ run.status }}</td>
         <td>{{ run.trigger_type }}</td>
         <td>{{ "yes" if run.dry_run else "no" }}</td>
@@ -51,7 +53,7 @@
       </tr>
       {% if run.log %}
       <tr>
-        <td colspan="9">
+        <td colspan="10">
           <details{% if highlight_run_id and run.id == highlight_run_id %} open{% endif %}>
             <summary style="cursor:pointer;color:#888;font-size:0.85em;">show log</summary>
             <pre style="margin:0.5em 0 0.5em 1em;font-size:0.82em;white-space:pre-wrap;">{{ run.log }}</pre>

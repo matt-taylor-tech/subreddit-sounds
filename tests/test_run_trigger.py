@@ -69,6 +69,7 @@ def _render_runs(highlight_run_id):
     started = SimpleNamespace(strftime=lambda fmt: "2026-07-25 09:00:00")
     run = SimpleNamespace(
         id=5,
+        target_label="Metal",
         status="success",
         trigger_type="manual",
         dry_run=True,
