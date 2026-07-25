@@ -115,6 +115,49 @@
       padding: 0.2rem 0.15rem !important;
     }
     .chip-entry:focus { outline: none; }
+    /* Genre/tag picker: dropdowns that append chips, so nothing has to be typed. */
+    .picker-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+      margin-top: 0.4rem;
+    }
+    .picker-row select {
+      flex: 1 1 12ch;
+      min-width: 0;
+      width: auto;
+    }
+    .picker-row button {
+      padding: 0.45rem 0.9rem;
+      flex: 0 0 auto;
+    }
+    .picker-row button[disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    /* Genre checklist: scannable two-column list of real genres with track counts. */
+    .genre-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 0.15rem 1rem;
+      max-height: 20rem;
+      overflow-y: auto;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0b1220;
+    }
+    .genre-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.15rem 0;
+    }
+    .genre-row:hover {
+      background: color-mix(in srgb, var(--panel), white 4%);
+    }
     .topnav {
       display: flex;
       justify-content: space-between;
@@ -169,27 +212,23 @@
          style="color:var(--muted);">subreddit-sounds v{{ app_version }}</a>
     </footer>
   </div>
+  {# Pages with a genre picker embed the taxonomy here; keeps it off every other page. #}
+  {% block page_data %}{% endblock %}
   <script>
-    // Progressive enhancement: turn any <input class="chipify"> into an add/remove
-    // chip editor. The original input becomes hidden and keeps the comma-separated
-    // value the backend already expects, so this works with JS off (plain box).
+    // Progressive enhancement for multi-value fields. The original input becomes
+    // hidden and keeps the comma-separated value the backend already expects, so
+    // with JS off every field degrades to the plain text box it started as.
+    //
+    //   input.chipify: type-and-Enter chip editor (subreddits)
+    //   input.pickify: the same chips, filled from genre dropdowns instead of
+    //                   typing; add data-allow-custom for a free-text box too
     (function () {
-      function chipify(input) {
-        var listId = input.getAttribute("data-list") || "";
-        var wrap = document.createElement("div");
-        wrap.className = "chips-wrap";
+      // Shared chip list: owns the hidden input's value and the chip rendering.
+      function chipList(input, container) {
         var chips = document.createElement("span");
         chips.className = "chips";
-        var entry = document.createElement("input");
-        entry.type = "text";
-        entry.className = "chip-entry";
-        entry.placeholder = input.getAttribute("data-placeholder") || "type and press Enter";
-        entry.setAttribute("autocomplete", "off");
-        if (listId) entry.setAttribute("list", listId);
-        input.parentNode.insertBefore(wrap, input.nextSibling);
-        wrap.appendChild(chips);
-        wrap.appendChild(entry);
-        input.type = "hidden";
+        container.appendChild(chips);
+        var onFocusBack = function () {};
 
         function values() {
           return input.value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
@@ -202,6 +241,11 @@
           });
           input.value = out.join(", ");
           render();
+        }
+        function add(raw) {
+          var vals = values();
+          String(raw).split(",").forEach(function (r) { if (r.trim()) vals.push(r.trim()); });
+          commit(vals);
         }
         function render() {
           chips.textContent = "";
@@ -216,29 +260,159 @@
             x.textContent = "×";
             x.addEventListener("click", function () {
               commit(values().filter(function (u) { return u !== v; }));
-              entry.focus();
+              onFocusBack();
             });
             chip.appendChild(x);
             chips.appendChild(chip);
           });
         }
+        return {
+          values: values, commit: commit, add: add, render: render,
+          onRemove: function (fn) { onFocusBack = fn; }
+        };
+      }
+
+      function chipify(input) {
+        var wrap = document.createElement("div");
+        wrap.className = "chips-wrap";
+        input.parentNode.insertBefore(wrap, input.nextSibling);
+        input.type = "hidden";
+        var list = chipList(input, wrap);
+
+        var entry = document.createElement("input");
+        entry.type = "text";
+        entry.className = "chip-entry";
+        entry.placeholder = input.getAttribute("data-placeholder") || "type and press Enter";
+        entry.setAttribute("autocomplete", "off");
+        var listId = input.getAttribute("data-list") || "";
+        if (listId) entry.setAttribute("list", listId);
+        wrap.appendChild(entry);
+        list.onRemove(function () { entry.focus(); });
+
         function addEntry() {
           if (!entry.value.trim()) return;
-          var vals = values();
-          entry.value.split(",").forEach(function (r) { if (r.trim()) vals.push(r.trim()); });
+          var raw = entry.value;
           entry.value = "";
-          commit(vals);
+          list.add(raw);
         }
         entry.addEventListener("keydown", function (e) {
           if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addEntry(); }
-          else if (e.key === "Backspace" && !entry.value) { var v = values(); v.pop(); commit(v); }
+          else if (e.key === "Backspace" && !entry.value) { var v = list.values(); v.pop(); list.commit(v); }
         });
         entry.addEventListener("blur", addEntry);
         if (input.form) input.form.addEventListener("submit", addEntry);
-        render();
+        list.render();
       }
-      var inputs = document.querySelectorAll("input.chipify");
-      for (var i = 0; i < inputs.length; i++) chipify(inputs[i]);
+
+      function taxonomy() {
+        var el = document.getElementById("genre-taxonomy");
+        if (!el) return null;
+        try { return JSON.parse(el.textContent); } catch (e) { return null; }
+      }
+
+      function pickify(input, data) {
+        var wrap = document.createElement("div");
+        wrap.className = "chips-wrap";
+        var row = document.createElement("div");
+        row.className = "picker-row";
+        input.parentNode.insertBefore(wrap, input.nextSibling);
+        input.parentNode.insertBefore(row, wrap.nextSibling);
+        input.type = "hidden";
+        var list = chipList(input, wrap);
+        var placeholder = document.createElement("span");
+        placeholder.className = "muted-small";
+        placeholder.textContent = input.getAttribute("data-empty-text") || "nothing selected yet";
+        wrap.appendChild(placeholder);
+
+        var genreSel = document.createElement("select");
+        genreSel.setAttribute("aria-label", "Genre");
+        var subSel = document.createElement("select");
+        subSel.setAttribute("aria-label", "Subgenre (optional)");
+        var addBtn = document.createElement("button");
+        addBtn.type = "button";
+        addBtn.textContent = "Add";
+        row.appendChild(genreSel);
+        row.appendChild(subSel);
+        row.appendChild(addBtn);
+
+        function option(value, label) {
+          var o = document.createElement("option");
+          o.value = value;
+          o.textContent = label;
+          return o;
+        }
+        genreSel.appendChild(option("", "Choose a genre…"));
+        data.genres.forEach(function (g) { genreSel.appendChild(option(g.slug, g.label)); });
+
+        function currentGenre() {
+          for (var i = 0; i < data.genres.length; i++) {
+            if (data.genres[i].slug === genreSel.value) return data.genres[i];
+          }
+          return null;
+        }
+        function refreshSubs() {
+          var g = currentGenre();
+          subSel.textContent = "";
+          subSel.appendChild(option("", g ? "all of " + g.label : "no genre chosen"));
+          if (g) g.subgenres.forEach(function (s) { subSel.appendChild(option(s.slug, s.label)); });
+          subSel.disabled = !g || !g.subgenres.length;
+          addBtn.disabled = !g;
+        }
+        function syncPlaceholder() {
+          placeholder.style.display = list.values().length ? "none" : "";
+        }
+        genreSel.addEventListener("change", refreshSubs);
+        addBtn.addEventListener("click", function () {
+          var g = currentGenre();
+          if (!g) return;
+          list.add(subSel.value || g.slug);
+          syncPlaceholder();
+          genreSel.focus();
+        });
+        list.onRemove(syncPlaceholder);
+
+        // Free-text escape hatch: the genre filter is a loose keyword match, and
+        // Bandcamp has real tags outside the discover taxonomy.
+        if (input.getAttribute("data-allow-custom") === "true") {
+          var entry = document.createElement("input");
+          entry.type = "text";
+          entry.className = "chip-entry";
+          entry.placeholder = "or type your own, press Enter";
+          entry.setAttribute("autocomplete", "off");
+          entry.setAttribute("aria-label", "Add a custom value");
+          wrap.appendChild(entry);
+          function addEntry() {
+            if (!entry.value.trim()) return;
+            var raw = entry.value;
+            entry.value = "";
+            list.add(raw);
+            syncPlaceholder();
+          }
+          entry.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addEntry(); }
+            else if (e.key === "Backspace" && !entry.value) { var v = list.values(); v.pop(); list.commit(v); syncPlaceholder(); }
+          });
+          entry.addEventListener("blur", addEntry);
+          if (input.form) input.form.addEventListener("submit", addEntry);
+          placeholder.style.display = "none";
+        }
+
+        refreshSubs();
+        list.render();
+        syncPlaceholder();
+      }
+
+      var chipInputs = document.querySelectorAll("input.chipify");
+      for (var i = 0; i < chipInputs.length; i++) chipify(chipInputs[i]);
+
+      var data = taxonomy();
+      var pickInputs = document.querySelectorAll("input.pickify");
+      for (var j = 0; j < pickInputs.length; j++) {
+        // No taxonomy on the page (or unparseable): fall back to a typed chip
+        // editor rather than leaving the user with no way to add a value.
+        if (data && data.genres && data.genres.length) pickify(pickInputs[j], data);
+        else chipify(pickInputs[j]);
+      }
     })();
   </script>
 </body>

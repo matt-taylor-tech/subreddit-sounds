@@ -1,4 +1,7 @@
 {% extends "base.html" %}
+{% block page_data %}
+<script type="application/json" id="genre-taxonomy">{{ genre_taxonomy|tojson }}</script>
+{% endblock %}
 {% block content %}
 <div class="card setup-card">
   <h1>First-Time Setup</h1>
@@ -107,11 +110,11 @@
     <h2>4. This playlist's sync settings</h2>
     <div class="input-block">
       <label for="spotify_genre_filter">Genre filter for YouTube→Spotify matches (optional)</label><br />
-      <input id="spotify_genre_filter" name="spotify_genre_filter" list="genre_options" placeholder="e.g. metal, rock, jazz — leave blank to disable" />
-      <datalist id="genre_options">
-        {% for genre in genre_suggestions %}<option value="{{ genre }}"></option>{% endfor %}
-      </datalist>
-      <small class="muted-small">Appended as <code>genre:&lt;value&gt;</code> to Spotify freetext searches, and used to reject structured matches when Spotify artist genres are known and outside this filter. Ignored for direct Spotify links.</small>
+      <input id="spotify_genre_filter" name="spotify_genre_filter"
+             placeholder="leave blank, then pick real genres later" />
+      <small class="muted-small">Best left blank. Spotify uses thousands of very specific genre names, so guessing one
+         here is unreliable. After setup, open this playlist under <strong>Playlists</strong> and use
+         <em>Scan my subreddits for genres</em> to pick from the genres your subreddits actually contain.</small>
     </div>
     <div class="row">
       <div class="input-block flex-1">
@@ -144,9 +147,9 @@
     </div>
     <div class="input-block">
       <label for="bandcamp_tag">Bandcamp tag(s)</label><br />
-      <input id="bandcamp_tag" name="bandcamp_tag" class="chipify"
-             data-list="genre_options" data-placeholder="type a tag, press Enter" />
-      <small class="muted-small">Tag slugs from <code>bandcamp.com/tag/&lt;tag&gt;</code>, e.g. <code>post-rock</code>.</small>
+      <input id="bandcamp_tag" name="bandcamp_tag" class="pickify"
+             data-allow-custom="true" data-empty-text="no tags yet" />
+      <small class="muted-small">Pick from Bandcamp's discover genres. Anything you type instead is checked against Bandcamp's tag list when you save.</small>
     </div>
 
     <div class="mt-sm">

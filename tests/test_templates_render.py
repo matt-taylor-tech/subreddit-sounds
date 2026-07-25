@@ -34,3 +34,24 @@ def test_login_page_renders():
         r = client.get("/login")
         assert r.status_code == 200
         assert 'name="csrf_token"' in r.text
+
+
+def test_setup_page_embeds_the_genre_taxonomy():
+    # The picker is driven entirely by this payload, so a missing/renamed context
+    # key would silently leave the user with an empty dropdown.
+    with TestClient(app) as client:
+        r = client.get("/setup")
+        assert 'id="genre-taxonomy"' in r.text
+        assert '\\"post-rock\\"' in r.text or '"post-rock"' in r.text
+        assert 'class="pickify"' in r.text
+
+
+def test_login_page_omits_the_taxonomy_payload(monkeypatch):
+    # Only pages with a picker should carry the ~15KB of genre data. Setup has to
+    # look complete here, or /login just redirects to the wizard.
+    monkeypatch.setattr("app.services.settings_service.is_setup_complete", lambda: True)
+    with TestClient(app) as client:
+        r = client.get("/login")
+        assert r.status_code == 200
+        assert "Log in" in r.text or 'name="password"' in r.text
+        assert 'id="genre-taxonomy"' not in r.text

@@ -7,7 +7,7 @@ from app.auth import hash_password
 from app.csrf import csrf_context, verify_csrf
 from app.curated import curated_context
 from app.db import get_db
-from app.services import reddit_service, settings_service, targets_service
+from app.services import bandcamp_service, reddit_service, settings_service, targets_service
 from app.version import version_context
 
 router = APIRouter()
@@ -80,6 +80,17 @@ def setup_submit(
             status_code=400,
         )
 
+    # Bandcamp tags are optional, but a bad one would silently fetch nothing, so
+    # verify before anything persists (same hard-block rule as the subreddits).
+    bandcamp_tags, tag_problem = bandcamp_service.resolve_tags(bandcamp_service.parse_tags(bandcamp_tag))
+    if tag_problem:
+        return templates.TemplateResponse(
+            request,
+            "setup.html",
+            {"error": tag_problem.message},
+            status_code=400,
+        )
+
     # Global settings (credentials + shared read options).
     settings_service.put_many(
         {
@@ -99,7 +110,7 @@ def setup_submit(
     )
 
     # The first playlist becomes the first target.
-    bandcamp_tag = bandcamp_tag.strip()
+    tags = ", ".join(bandcamp_tags)
     targets_service.create_target(
         db,
         name="Default",
@@ -108,8 +119,8 @@ def setup_submit(
         genre_filter=spotify_genre_filter.strip() or None,
         cap=sync_cap,
         bandcamp_enabled=bandcamp_enabled == "true",
-        bandcamp_tags=bandcamp_tag,
-        bandcamp_enabled_tags=bandcamp_tag,
+        bandcamp_tags=tags,
+        bandcamp_enabled_tags=tags,
         sync_hour=sync_hour,
         sync_minute=sync_minute,
     )

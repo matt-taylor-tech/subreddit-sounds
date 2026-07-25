@@ -1,13 +1,16 @@
 """Curated suggestion lists for the setup wizard and settings forms.
 
-These populate the ``<datalist>`` dropdowns on the subreddit and genre inputs:
-suggestions the user can pick from, while still accepting any free-text value.
-Kept in one place so the lists are easy to extend without touching templates.
+The subreddit input is a ``<datalist>``: a hand-kept list of suggestions that
+still accepts any free-text value. The genre and Bandcamp-tag inputs are backed
+instead by ``bandcamp_taxonomy``: Bandcamp's real discover genres, so users pick
+from what actually exists rather than guessing a slug.
 
 Nothing here is a *default* — the fields ship empty and the user chooses.
 """
 
 from fastapi import Request
+
+from app import bandcamp_taxonomy
 
 # Popular music subreddits, loosely grouped by broad genre. Order is roughly
 # general-interest first, then genre-specific. Values are the sub name without
@@ -50,33 +53,14 @@ SUBREDDIT_SUGGESTIONS: list[str] = [
     "kpop",
 ]
 
-# Common genre keywords for the Spotify genre filter and Bandcamp tag inputs.
-GENRE_SUGGESTIONS: list[str] = [
-    "metal",
-    "rock",
-    "punk",
-    "indie",
-    "pop",
-    "electronic",
-    "house",
-    "techno",
-    "ambient",
-    "hip-hop",
-    "r&b",
-    "soul",
-    "funk",
-    "jazz",
-    "blues",
-    "classical",
-    "folk",
-    "country",
-    "reggae",
-]
-
 
 def curated_context(request: Request) -> dict:
-    """Jinja context processor: expose the curated suggestion lists to templates."""
+    """Jinja context processor: expose the suggestion lists and genre taxonomy.
+
+    ``genre_taxonomy`` is embedded in the page (via Jinja's ``tojson``) for the
+    browser-side picker, so choosing a genre needs no round-trip to Bandcamp.
+    """
     return {
         "subreddit_suggestions": SUBREDDIT_SUGGESTIONS,
-        "genre_suggestions": GENRE_SUGGESTIONS,
+        "genre_taxonomy": bandcamp_taxonomy.as_picker_payload(),
     }

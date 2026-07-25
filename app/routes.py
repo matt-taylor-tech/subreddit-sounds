@@ -1,7 +1,7 @@
 import json
 import secrets
 from datetime import datetime
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import RedirectResponse, Response
@@ -15,7 +15,15 @@ from app.csrf import csrf_context, verify_csrf
 from app.curated import curated_context
 from app.db import get_db
 from app.models import Run
-from app.services import config_io, reddit_service, settings_service, spotify_service, targets_service
+from app.services import (
+    bandcamp_service,
+    config_io,
+    genre_scan_service,
+    reddit_service,
+    settings_service,
+    spotify_service,
+    targets_service,
+)
 from app.version import version_context
 
 router = APIRouter()
@@ -324,6 +332,8 @@ _NEW_FORM = {
     "sync_hour": 7,
     "sync_minute": 0,
     "blocklist_enabled": False,
+    "genre_include_substyles": True,
+    "genre_include_unclassified": True,
 }
 
 
@@ -339,6 +349,8 @@ def _form_from_target(t) -> dict:
         "sync_hour": t.sync_hour,
         "sync_minute": t.sync_minute,
         "blocklist_enabled": t.blocklist_enabled,
+        "genre_include_substyles": t.genre_include_substyles,
+        "genre_include_unclassified": t.genre_include_unclassified,
     }
 
 
@@ -370,12 +382,28 @@ def _validate_target_form(db, form: dict, existing=None) -> tuple[dict | None, s
         problem = reddit_service.first_definitive_problem(added, settings_service.get("reddit_user_agent"))
         if problem:
             return None, problem.message
-    tags = ",".join(t.strip() for t in form["bandcamp_tags"].split(",") if t.strip())
+    # Same deal for tags: only newly-added ones are checked, so a target saved
+    # before a tag was retired (or while Bandcamp was down) stays editable.
+    saved_tags = {t.lower() for t in bandcamp_service.parse_tags(existing.bandcamp_tags)} if existing else set()
+    tags, tag_problem = bandcamp_service.resolve_tags(
+        bandcamp_service.parse_tags(form["bandcamp_tags"]), skip=saved_tags
+    )
+    if tag_problem:
+        return None, tag_problem.message
+    tags = ", ".join(tags)
+    # The checklist is the real input; the text field is only the fallback for a
+    # target that has never been scanned (and for JS-off browsers).
+    picked = [g.strip() for g in form.get("genres", []) if g.strip()]
+    if not picked:
+        picked = [g.strip() for g in form["genre_filter"].split(",") if g.strip()]
+
     fields = {
         "name": form["name"].strip() or "Playlist",
         "playlist_id": form["playlist_id"].strip(),
         "subreddits": ", ".join(subs),
-        "genre_filter": form["genre_filter"].strip() or None,
+        "genre_filter": ", ".join(picked) or None,
+        "genre_include_substyles": form["genre_include_substyles"] == "true",
+        "genre_include_unclassified": form["genre_include_unclassified"] == "true",
         "cap": form["cap"],
         "bandcamp_enabled": form["bandcamp_enabled"] == "true",
         "bandcamp_tags": tags,
@@ -424,9 +452,39 @@ def target_edit(request: Request, target_id: int, db: Session = Depends(get_db))
             "action": f"/admin/targets/{target_id}",
             "target_id": target_id,
             "blocked_tracks": _blocked_tracks(target),
+            "genre_rows": genre_scan_service.picker_rows(target),
+            "genre_scan": genre_scan_service.load_scan(target),
+            "scan_error": request.query_params.get("scan_error"),
             "error": None,
         },
     )
+
+
+@router.post("/admin/targets/{target_id}/scan-genres")
+def target_scan_genres(
+    request: Request,
+    target_id: int,
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(verify_csrf),
+):
+    """Resolve recent posts and record which Spotify genres they actually contain.
+
+    Read-only with respect to the playlist. Runs inline like a manual sync does,
+    so the user gets the list back on the same page they clicked from.
+    """
+    require_auth(request)
+    target = targets_service.get_target(db, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Target not found")
+    try:
+        result = genre_scan_service.scan_target(target)
+    except Exception as exc:
+        return RedirectResponse(
+            url=f"/admin/targets/{target_id}/edit?scan_error={quote(str(exc)[:200])}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    targets_service.update_target(db, target_id, genre_scan=json.dumps(result))
+    return RedirectResponse(url=f"/admin/targets/{target_id}/edit", status_code=status.HTTP_303_SEE_OTHER)
 
 
 def _form_params(
@@ -434,6 +492,9 @@ def _form_params(
     playlist_id: str = Form(""),
     subreddits: str = Form(""),
     genre_filter: str = Form(""),
+    genres: list[str] = Form([]),
+    genre_include_substyles: str = Form("false"),
+    genre_include_unclassified: str = Form("false"),
     cap: int = Form(25),
     bandcamp_enabled: str = Form("false"),
     bandcamp_tags: str = Form(""),
@@ -446,6 +507,9 @@ def _form_params(
         "playlist_id": playlist_id,
         "subreddits": subreddits,
         "genre_filter": genre_filter,
+        "genres": genres,
+        "genre_include_substyles": genre_include_substyles,
+        "genre_include_unclassified": genre_include_unclassified,
         "cap": cap,
         "bandcamp_enabled": bandcamp_enabled,
         "bandcamp_tags": bandcamp_tags,

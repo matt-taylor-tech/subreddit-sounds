@@ -126,18 +126,68 @@ def search_track(
     artist: str | None = None,
     genre_filter: str | None = None,
     min_duration_ms: int | None = None,
+    artist_is_hint: bool = False,
+    include_substyles: bool = True,
+    include_unclassified: bool = True,
 ) -> str | None:
     """Return the best Spotify track ID matching query, or None.
 
-    When artist is provided, uses field-filtered search (artist:"X" track:"Y"),
-    and ranks candidates by title/artist token overlap. When genre_filter is set,
-    candidates with known non-matching artist genres are rejected. Tracks shorter
-    than min_duration_ms are treated as no match.
+    A *known* artist (parsed from the title, or a "- Topic" channel) drives a
+    field-filtered search (artist:"X" track:"Y") and rejects candidates by a
+    different artist.
+
+    A *hinted* artist (``artist_is_hint``) is a bare channel name, which is
+    sometimes the artist's own upload and sometimes a label or curator. Both are
+    tried, precise first: the field-filtered search nails the self-upload case,
+    and only if it comes back empty do we fall back to a freetext search where the
+    hint merely boosts ranking. Searching artist:"Majestic Casual" alone would
+    return nothing and lose the post entirely.
+
+    When genre_filter is set, candidates with known non-matching artist genres are
+    rejected. Tracks shorter than min_duration_ms are treated as no match.
     """
     if artist:
-        q = f'artist:"{artist}" track:"{query}"'
-    else:
-        q = f"{query} genre:{genre_filter}" if genre_filter else query
+        precise = _search_and_select(
+            f'artist:"{artist}" track:"{query}"',
+            query=query,
+            artist=artist,
+            genre_filter=genre_filter,
+            min_duration_ms=min_duration_ms,
+            artist_is_hint=False,
+            include_substyles=include_substyles,
+            include_unclassified=include_unclassified,
+        )
+        if precise or not artist_is_hint:
+            return precise
+
+    # Only the first genre term is usable as a search filter; every term still
+    # applies as a rejection term in _select_best_track. Quoted so multi-word
+    # genres survive.
+    terms = _genre_terms(genre_filter)
+    q = f'{query} genre:"{terms[0]}"' if terms else query
+    return _search_and_select(
+        q,
+        query=query,
+        artist=artist,
+        genre_filter=genre_filter,
+        min_duration_ms=min_duration_ms,
+        artist_is_hint=True,
+        include_substyles=include_substyles,
+        include_unclassified=include_unclassified,
+    )
+
+
+def _search_and_select(
+    q: str,
+    query: str,
+    artist: str | None,
+    genre_filter: str | None,
+    min_duration_ms: int | None,
+    artist_is_hint: bool,
+    include_substyles: bool = True,
+    include_unclassified: bool = True,
+) -> str | None:
+    """Run one Spotify track search for ``q`` and pick the best candidate."""
     token = get_access_token()
     artist_genres_by_id: dict[str, list[str]] = {}
     with httpx.Client() as client:
@@ -174,6 +224,9 @@ def search_track(
         genre_filter=genre_filter,
         artist_genres_by_id=artist_genres_by_id,
         min_duration_ms=min_duration_ms,
+        artist_is_hint=artist_is_hint,
+        include_substyles=include_substyles,
+        include_unclassified=include_unclassified,
     )
 
 
@@ -189,9 +242,49 @@ def _genre_terms(genre_filter: str | None) -> list[str]:
     return [part.strip().lower() for part in genre_filter.split(",") if part.strip()]
 
 
-def _genre_matches(artist_genres: list[str], wanted_terms: list[str]) -> bool:
-    lowered = [g.lower() for g in artist_genres]
-    return any(term in genre for term in wanted_terms for genre in lowered)
+def _fold(value: str) -> str:
+    """Fold punctuation to single spaces so slugs match Spotify's own spelling.
+
+    Spotify writes its genres with spaces and ampersands ("math rock", "r&b"),
+    so a hyphenated term like "math-rock" would otherwise substring-match
+    nothing and silently reject every classified artist.
+    """
+    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+
+
+def _genre_matches(artist_genres: list[str], wanted_terms: list[str], include_substyles: bool = True) -> bool:
+    """Does an artist's genre list satisfy the wanted terms?
+
+    Terms are real Spotify genre names the user picked from a scan, so the base
+    rule is exact equality: predictable, with no strictness to second-guess.
+
+    ``include_substyles`` additionally accepts any genre that *contains* a wanted
+    term as a phrase, so picking "death metal" also takes "melodic death metal"
+    and "technical death metal". Without it, picking "death metal" would quietly
+    exclude most of the family, which is the trap that made the old free-text
+    field unpredictable.
+    """
+    folded = [_fold(g) for g in artist_genres]
+    wanted = [_fold(term) for term in wanted_terms]
+    if any(term == genre for term in wanted for genre in folded):
+        return True
+    if not include_substyles:
+        return False
+    return any(_phrase_in(term, genre) for term in wanted for genre in folded)
+
+
+def _phrase_in(term: str, genre: str) -> bool:
+    """Is ``term`` a whole-word phrase inside ``genre``? Both already folded.
+
+    Word-boundary aware so "metal" doesn't match "metalcore" while "death metal"
+    still matches "melodic death metal".
+    """
+    if not term:
+        return False
+    genre_words = genre.split()
+    term_words = term.split()
+    n = len(term_words)
+    return any(genre_words[i : i + n] == term_words for i in range(len(genre_words) - n + 1))
 
 
 def _select_best_track(
@@ -201,6 +294,9 @@ def _select_best_track(
     genre_filter: str | None = None,
     artist_genres_by_id: dict[str, list[str]] | None = None,
     min_duration_ms: int | None = None,
+    artist_is_hint: bool = False,
+    include_substyles: bool = True,
+    include_unclassified: bool = True,
 ) -> str | None:
     query_tokens = _tokenize(query)
     artist_tokens = _tokenize(artist)
@@ -220,13 +316,20 @@ def _select_best_track(
         artists = track.get("artists", [])
         candidate_artist_tokens = _tokenize(" ".join(a.get("name", "") for a in artists if isinstance(a, dict)))
         artist_overlap = len(artist_tokens & candidate_artist_tokens) if artist_tokens else 0
-        if artist_tokens and artist_overlap == 0:
+        # A hinted artist may be a curator/label channel, so a mismatch means
+        # "no evidence", not "wrong track". It still boosts score when it agrees.
+        if artist_tokens and artist_overlap == 0 and not artist_is_hint:
             continue
 
         if wanted_genres and artists and isinstance(artists[0], dict):
             primary_artist_id = artists[0].get("id")
             known_genres = genres_by_id.get(primary_artist_id, []) if primary_artist_id else []
-            if known_genres and not _genre_matches(known_genres, wanted_genres):
+            if known_genres:
+                if not _genre_matches(known_genres, wanted_genres, include_substyles):
+                    continue
+            elif not include_unclassified:
+                # Spotify leaves many artists (especially small ones) unclassified.
+                # Whether that counts as a match is the target's explicit setting.
                 continue
 
         score = title_overlap * _TITLE_OVERLAP_WEIGHT + artist_overlap * _ARTIST_OVERLAP_WEIGHT
@@ -258,6 +361,49 @@ def get_tracks_info(track_ids: list[str]) -> dict[str, str]:
                     artists = ", ".join(a["name"] for a in track.get("artists", []))
                     result[track["id"]] = f"{artists} — {track['name']}"
     return result
+
+
+def get_primary_artist_genres(track_ids: list[str]) -> dict[str, tuple[str, list[str]]]:
+    """Return {track_id: (primary_artist_name, genres)} for the given tracks.
+
+    Genres only exist on Spotify *artist* objects (tracks have no genre field and
+    album genres come back empty), so this is a two-hop lookup: tracks to their
+    primary artist, then artists to their genres. An artist Spotify hasn't
+    classified yields an empty list, which callers report rather than hide.
+    """
+    if not track_ids:
+        return {}
+    token = get_access_token()
+    primary: dict[str, tuple[str, str]] = {}  # track_id -> (artist_id, artist_name)
+    with httpx.Client() as client:
+        for i in range(0, len(track_ids), 50):
+            r = client.get(
+                f"{_API}/tracks",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"ids": ",".join(track_ids[i : i + 50])},
+            )
+            r.raise_for_status()
+            for track in r.json().get("tracks", []):
+                if not track or not track.get("id"):
+                    continue
+                artists = [a for a in track.get("artists", []) if isinstance(a, dict) and a.get("id")]
+                if artists:
+                    primary[track["id"]] = (artists[0]["id"], artists[0].get("name", ""))
+
+        genres_by_artist: dict[str, list[str]] = {}
+        artist_ids = sorted({aid for aid, _ in primary.values()})
+        for i in range(0, len(artist_ids), 50):
+            r = client.get(
+                f"{_API}/artists",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"ids": ",".join(artist_ids[i : i + 50])},
+            )
+            r.raise_for_status()
+            for row in r.json().get("artists", []):
+                if row and row.get("id"):
+                    genres_by_artist[row["id"]] = row.get("genres", [])
+
+    return {tid: (name, genres_by_artist.get(aid, [])) for tid, (aid, name) in primary.items()}
 
 
 def remove_tracks(playlist_id: str, track_ids: list[str]) -> None:

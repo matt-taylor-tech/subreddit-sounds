@@ -41,7 +41,18 @@ class Target(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     playlist_id: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     subreddits: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    genre_filter: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Selected Spotify artist genres, comma-separated. Text rather than String
+    # because picking several real genre names ("melodic death metal", ...) runs
+    # well past the old 128-char cap.
+    genre_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Ticking "death metal" also accepts "melodic death metal" and friends.
+    genre_include_substyles: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Spotify leaves many artists unclassified; whether those count as a match is
+    # the user's call rather than a hidden rule. Defaults to the historical
+    # lenient behaviour so upgrading doesn't silently shrink a playlist.
+    genre_include_unclassified: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Cached result of the last "scan my subreddits for genres" (JSON).
+    genre_scan: Mapped[str] = mapped_column(Text, default="", nullable=False)
     cap: Mapped[int] = mapped_column(Integer, default=25, nullable=False)
     bandcamp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     bandcamp_tags: Mapped[str] = mapped_column(Text, default="", nullable=False)

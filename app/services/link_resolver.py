@@ -60,9 +60,23 @@ _NOISE = re.compile(
 _DASH_SPLIT = re.compile(r"\s+[-–—]\s+")
 
 
+def _strip_noise(title: str) -> str:
+    """Strip every trailing noise suffix, not just the last one.
+
+    Real titles stack them ("Song (Official Video) [4K]"), and each leftover
+    marker becomes a junk token in the Spotify search query.
+    """
+    cleaned = title.strip()
+    while True:
+        stripped = _NOISE.sub("", cleaned).strip()
+        if stripped == cleaned:
+            return stripped
+        cleaned = stripped
+
+
 def clean_youtube_title(title: str) -> str:
     """Strip common YouTube noise suffixes to improve Spotify search accuracy."""
-    return _NOISE.sub("", title).strip()
+    return _strip_noise(title)
 
 
 def parse_youtube_title(title: str) -> tuple[str | None, str]:
@@ -72,7 +86,7 @@ def parse_youtube_title(title: str) -> tuple[str | None, str]:
     whitespace). Returns (None, cleaned_title) when no separator is found,
     signalling the caller to fall back to a channel-derived artist hint.
     """
-    cleaned = _NOISE.sub("", title).strip()
+    cleaned = _strip_noise(title)
     match = _DASH_SPLIT.search(cleaned)
     if match:
         artist = cleaned[: match.start()].strip()
@@ -86,19 +100,33 @@ def is_full_album(title: str) -> bool:
     return bool(re.search(r"\bfull\s+album\b", title, re.IGNORECASE))
 
 
+_TOPIC_SUFFIX = " - Topic"
+
+
+def is_topic_channel(channel: str | None) -> bool:
+    """True for YouTube's auto-generated "{Artist} - Topic" artist channels.
+
+    Those name the artist reliably. Every other channel name is a guess: labels,
+    curators and compilation channels ("Majestic Casual", "NPR Music") all post
+    other people's music, so their name must not be used to reject candidates.
+    """
+    return bool(channel and channel.strip().endswith(_TOPIC_SUFFIX))
+
+
 def derive_artist_from_channel(channel: str | None) -> str | None:
     """Best-effort artist hint from a YouTube channel name.
 
     Recognises the "{Artist} - Topic" convention (YouTube's auto-generated
     artist channels) and returns the cleaned name. Falls back to the raw
-    channel name so self-uploaded band videos still get an artist signal —
-    callers should treat the result as a hint, not a guarantee.
+    channel name so self-uploaded band videos still get an artist signal.
+    Callers should treat the result as a hint, not a guarantee, unless
+    ``is_topic_channel`` says otherwise.
     """
     if not channel:
         return None
     channel = channel.strip()
     if not channel:
         return None
-    if channel.endswith(" - Topic"):
-        return channel[: -len(" - Topic")].strip() or None
+    if channel.endswith(_TOPIC_SUFFIX):
+        return channel[: -len(_TOPIC_SUFFIX)].strip() or None
     return channel
