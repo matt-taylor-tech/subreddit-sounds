@@ -189,17 +189,23 @@ def spotify_callback(
 
 def _settings_context() -> dict:
     """Global (non-target) settings for the Settings page. Per-target config
-    lives on the targets pages."""
+    lives on the targets pages.
+
+    Secrets are reported as *stored or not*, never by value: the save handler
+    already treats a blank field as "keep the existing secret", so echoing the
+    real one into an input's value attribute put credentials in the page source
+    (and in any screenshot or screen-share of this page) for no benefit.
+    """
     return {
         "spotify_client_id": settings_service.get("spotify_client_id", ""),
-        "spotify_client_secret": settings_service.get("spotify_client_secret", ""),
+        "spotify_client_secret_set": bool(settings_service.get("spotify_client_secret", "")),
         "spotify_redirect_uri": settings_service.get("spotify_redirect_uri", ""),
         "spotify_connected": spotify_service.is_connected(),
         "reddit_sort": settings_service.get("reddit_sort", "top"),
         "reddit_timeframe": settings_service.get("reddit_timeframe", "week"),
         "reddit_user_agent": settings_service.get("reddit_user_agent", ""),
         "reddit_client_id": settings_service.get("reddit_client_id", ""),
-        "reddit_client_secret": settings_service.get("reddit_client_secret", ""),
+        "reddit_client_secret_set": bool(settings_service.get("reddit_client_secret", "")),
         "min_track_duration_sec": settings_service.get("min_track_duration_sec", "120"),
         "sync_timezone": settings_service.get("sync_timezone", "America/New_York"),
         "sync_enabled": settings_service.get("sync_enabled", "true"),
@@ -379,7 +385,15 @@ def _validate_target_form(db, form: dict, existing=None) -> tuple[dict | None, s
     current = {s.lower() for s in reddit_service.parse_subreddits(existing.subreddits)} if existing else set()
     added = [s for s in subs if s.lower() not in current]
     if added:
-        problem = reddit_service.first_definitive_problem(added, settings_service.get("reddit_user_agent"))
+        try:
+            problem = reddit_service.first_definitive_problem(added, settings_service.get("reddit_user_agent"))
+        except Exception:
+            # Verification is a convenience, not a gate. If Reddit can't be
+            # reached at all (bad OAuth credentials, network down), that says
+            # nothing about the subreddit, so let the save through instead of
+            # failing the whole form. A genuinely bad sub still shows up in the
+            # run log.
+            problem = None
         if problem:
             return None, problem.message
     # Same deal for tags: only newly-added ones are checked, so a target saved

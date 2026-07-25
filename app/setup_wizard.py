@@ -71,7 +71,12 @@ def setup_submit(
             status_code=400,
         )
     user_agent = reddit_user_agent.strip() or _DEFAULT_USER_AGENT
-    problem = reddit_service.first_definitive_problem(subreddits, user_agent)
+    try:
+        problem = reddit_service.first_definitive_problem(subreddits, user_agent)
+    except Exception:
+        # Being unable to reach Reddit says nothing about the subreddit, and
+        # must not wedge first-run setup behind an unrelated failure.
+        problem = None
     if problem:
         return templates.TemplateResponse(
             request,

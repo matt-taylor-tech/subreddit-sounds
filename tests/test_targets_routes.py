@@ -117,3 +117,38 @@ def test_csrf_required(monkeypatch):
     with TestClient(app) as c:
         r = c.post("/admin/targets", data=_form(), follow_redirects=False)
         assert r.status_code == 403
+
+
+def test_save_survives_reddit_verification_blowing_up(client, monkeypatch):
+    """Bad Reddit credentials must not 500 the playlist form.
+
+    Verification is a convenience: if Reddit can't be reached at all, that says
+    nothing about the subreddit, so the save proceeds.
+    """
+
+    def _boom(subs, ua):
+        raise RuntimeError("Reddit OAuth token request failed (401)")
+
+    monkeypatch.setattr(routes.reddit_service, "first_definitive_problem", _boom)
+    r = client.post("/admin/targets", data=_form(name="Resilient"), follow_redirects=False)
+    assert r.status_code == 303
+    db = SessionLocal()
+    try:
+        assert db.query(Target).filter(Target.name == "Resilient").first() is not None
+    finally:
+        db.close()
+
+
+def test_destructive_actions_ask_before_acting(client):
+    """Delete carries data-confirm, and no inline onsubmit that user text could break.
+
+    The playlist name is arbitrary text; building a JS string around it inline
+    meant a quote in the name broke the handler and the form submitted with no
+    prompt at all.
+    """
+    client.post("/admin/targets", data=_form(name="Quote'd & <Risky>"))
+    page = client.get("/admin/targets").text
+    assert 'onsubmit="' not in page  # the attribute, not the word in a comment
+    assert 'data-confirm="Delete the playlist' in page
+    # The name is escaped as attribute text rather than injected as JS.
+    assert "Quote&#39;d &amp; &lt;Risky&gt;" in page

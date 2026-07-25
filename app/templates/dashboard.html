@@ -1,46 +1,58 @@
 {% extends "base.html" %}
+{% block title %}Dashboard · Subreddit Sounds{% endblock %}
 {% block content %}
 <h1>Dashboard</h1>
 
 <div class="card">
   <h2>Spotify</h2>
   {% if spotify_connected %}
-    <p style="color:#4caf50;">&#10003; Connected</p>
+    <p class="ok-text">&#10003; Connected</p>
   {% else %}
-    <p style="color:#e57373;">&#10007; Not connected</p>
-    <a href="/spotify/authorize"><button>Connect Spotify</button></a>
+    <p class="error-text">&#10007; Not connected</p>
+    <p class="muted-small">Syncing can't run until Spotify is authorised.</p>
+    <a class="btn" href="/spotify/authorize">Connect Spotify</a>
   {% endif %}
 </div>
 
 {% for v in views %}
 <div class="card">
-  <h2>
-    {{ v.target.name }}{% if not v.target.enabled %} <span class="muted-small">(disabled)</span>{% endif %}
-    {% if v.playlist_name %}&mdash; {{ v.playlist_name }}{% endif %}
+  <h2 class="card-title">
+    <span>{{ v.target.name }}</span>
+    {% if not v.target.enabled %}<span class="pill">paused</span>{% endif %}
+    {% if v.playlist_name %}<span class="muted-small">{{ v.playlist_name }}</span>{% endif %}
     {% if v.target.playlist_id %}
-    <a href="https://open.spotify.com/playlist/{{ v.target.playlist_id }}" target="_blank" rel="noopener"
-       style="font-size:0.85rem; font-weight:400; margin-left:0.5rem;">Open in Spotify ↗</a>
+    <a class="card-title-link" href="https://open.spotify.com/playlist/{{ v.target.playlist_id }}"
+       target="_blank" rel="noopener">Open in Spotify ↗</a>
     {% endif %}
   </h2>
   <p class="muted-small">
     Subreddits: {{ v.target.subreddits }}
     &middot; daily {{ "%02d:%02d" | format(v.target.sync_hour, v.target.sync_minute) }} {{ sync_timezone }}
-    {% if v.next_run %}&middot; next {{ v.next_run.strftime("%Y-%m-%d %H:%M") }}{% else %}&middot; not scheduled{% endif %}
+    {% if v.next_run %}&middot; next {{ v.next_run.strftime("%Y-%m-%d %H:%M") }}
+    {% elif not v.target.enabled %}&middot; paused, no runs scheduled
+    {% else %}&middot; not scheduled{% endif %}
   </p>
   {% if v.latest_run %}
-  <p class="muted-small">Last run: {{ v.latest_run.status }} &mdash; {{ v.latest_run.message or "-" }}</p>
+  <p class="muted-small">
+    Last run:
+    <span class="pill {{ 'pill-ok' if v.latest_run.status == 'success' else 'pill-bad' if v.latest_run.status == 'failed' else '' }}">
+      {{ v.latest_run.status }}</span>
+    {{ v.latest_run.message or "" }}
+    <a href="/admin/runs?run_id={{ v.latest_run.id }}">details</a>
+  </p>
   {% endif %}
   {% if v.playlist_tracks %}
   <table>
-    <thead><tr><th>#</th><th>Artist — Title</th></tr></thead>
+    <caption class="visually-hidden">Current tracks in {{ v.target.name }}</caption>
+    <thead><tr><th scope="col" class="col-num">#</th><th scope="col">Artist &mdash; Title</th></tr></thead>
     <tbody>
       {% for track in v.playlist_tracks %}
-      <tr><td style="color:var(--muted); width:2.5rem;">{{ loop.index }}</td><td>{{ track }}</td></tr>
+      <tr><td class="col-num">{{ loop.index }}</td><td>{{ track }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
   {% elif spotify_connected and v.target.playlist_id %}
-  <p class="muted-small">Playlist is empty — run a sync to populate it.</p>
+  <p class="muted-small">Playlist is empty. Run a sync to populate it.</p>
   {% endif %}
 </div>
 {% else %}
