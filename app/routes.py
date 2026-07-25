@@ -15,9 +15,12 @@ from app.curated import curated_context
 from app.db import get_db
 from app.models import Run
 from app.services import reddit_service, settings_service, spotify_service, targets_service
+from app.version import version_context
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates", context_processors=[csrf_context, curated_context])
+templates = Jinja2Templates(
+    directory="app/templates", context_processors=[csrf_context, curated_context, version_context]
+)
 
 
 def require_auth(request: Request) -> None:

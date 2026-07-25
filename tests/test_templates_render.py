@@ -14,6 +14,7 @@ os.environ["DATABASE_URL"] = "sqlite:///" + tempfile.mktemp(suffix=".db")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app  # noqa: E402
+from app.version import get_version  # noqa: E402
 
 
 def test_setup_page_renders():
@@ -24,6 +25,8 @@ def test_setup_page_renders():
         assert "First-Time Setup" in r.text
         # csrf context processor ran
         assert 'name="csrf_token"' in r.text
+        # version footer (issue #41)
+        assert f"subreddit-sounds v{get_version()}" in r.text
 
 
 def test_login_page_renders():
