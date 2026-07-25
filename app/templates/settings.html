@@ -6,6 +6,10 @@
 <p style="color: var(--accent);">&#10003; Settings saved.</p>
 {% endif %}
 
+{% if error %}
+<p class="error-text">{{ error }}</p>
+{% endif %}
+
 <form method="post" action="/admin/settings">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
 

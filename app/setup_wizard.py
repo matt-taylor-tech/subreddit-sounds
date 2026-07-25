@@ -5,10 +5,12 @@ from fastapi.templating import Jinja2Templates
 from app.auth import hash_password
 from app.csrf import csrf_context, verify_csrf
 from app.curated import curated_context
-from app.services import settings_service
+from app.services import reddit_service, settings_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates", context_processors=[csrf_context, curated_context])
+
+_DEFAULT_USER_AGENT = "web:subreddit-sounds:0.1 (by /u/suiifelse)"
 
 
 @router.get("/setup")
@@ -54,14 +56,24 @@ def setup_submit(
             status_code=400,
         )
 
+    user_agent = reddit_user_agent.strip() or _DEFAULT_USER_AGENT
+    check = reddit_service.check_subreddit(reddit_subreddit, user_agent)
+    if check.definitive and not check.ok:
+        return templates.TemplateResponse(
+            request,
+            "setup.html",
+            {"error": check.message},
+            status_code=400,
+        )
+
     settings_service.put_many(
         {
             "admin_username": admin_username,
             "admin_password_hash": hash_password(admin_password),
-            "reddit_subreddit": reddit_subreddit,
+            "reddit_subreddit": reddit_service.normalize_subreddit(reddit_subreddit),
             "reddit_sort": reddit_sort,
             "reddit_timeframe": reddit_timeframe,
-            "reddit_user_agent": reddit_user_agent.strip() or "web:subreddit-sounds:0.1 (by /u/suiifelse)",
+            "reddit_user_agent": user_agent,
             "reddit_client_id": reddit_client_id.strip(),
             "reddit_client_secret": reddit_client_secret.strip(),
             "spotify_client_id": spotify_client_id,

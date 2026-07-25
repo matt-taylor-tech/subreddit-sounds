@@ -14,7 +14,7 @@ from app.csrf import csrf_context, verify_csrf
 from app.curated import curated_context
 from app.db import get_db
 from app.models import Run
-from app.services import settings_service, spotify_service
+from app.services import reddit_service, settings_service, spotify_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates", context_processors=[csrf_context, curated_context])
@@ -234,6 +234,25 @@ def settings_save(
 ):
     require_auth(request)
 
+    # Verify the subreddit only when it actually changed — Reddit rate-limits the
+    # keyless RSS feed, so we don't spend a request when the user edited some
+    # other setting. A rate-limited/ambiguous result is non-definitive and never
+    # blocks the save (see reddit_service.check_subreddit).
+    new_sub = reddit_service.normalize_subreddit(reddit_subreddit)
+    current_sub = reddit_service.normalize_subreddit(settings_service.get("reddit_subreddit", ""))
+    if new_sub != current_sub:
+        user_agent = reddit_user_agent.strip() or settings_service.get("reddit_user_agent")
+        check = reddit_service.check_subreddit(new_sub, user_agent)
+        if check.definitive and not check.ok:
+            ctx = _settings_context()
+            ctx["reddit_subreddit"] = reddit_subreddit  # keep what the user typed
+            return templates.TemplateResponse(
+                request,
+                "settings.html",
+                {"settings": ctx, "saved": False, "error": check.message},
+                status_code=400,
+            )
+
     # Build the full tag list: existing + any newly added
     existing = [t.strip() for t in bc_tag_list.split(",") if t.strip()]
     if new_bc_tag.strip():
@@ -246,7 +265,7 @@ def settings_save(
         "spotify_playlist_id": spotify_playlist_id.strip(),
         "spotify_redirect_uri": spotify_redirect_uri.strip(),
         "spotify_genre_filter": spotify_genre_filter.strip(),
-        "reddit_subreddit": reddit_subreddit.strip(),
+        "reddit_subreddit": new_sub,
         "reddit_sort": reddit_sort,
         "reddit_timeframe": reddit_timeframe,
         "reddit_client_id": reddit_client_id.strip(),

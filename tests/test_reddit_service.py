@@ -1,5 +1,6 @@
 """Tests for Reddit access: public RSS by default, OAuth JSON when configured."""
 
+import httpx
 import pytest
 
 from app.services import reddit_service
@@ -201,3 +202,140 @@ def test_403_not_retried(settings, monkeypatch):
     # a hard block fails immediately: one GET, no backoff
     assert sum(1 for c in calls if c[0] == "GET") == 1
     assert slept == []
+
+
+# --- normalize_subreddit -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("MelodicDeathMetal", "MelodicDeathMetal"),
+        ("  spaced  ", "spaced"),
+        ("r/Foo", "Foo"),
+        ("/r/Foo", "Foo"),
+        ("R/Foo/", "Foo"),
+        ("", ""),
+    ],
+)
+def test_normalize_subreddit(raw, expected):
+    assert reddit_service.normalize_subreddit(raw) == expected
+
+
+# --- check_subreddit ---------------------------------------------------------
+
+
+def test_check_subreddit_ok_via_rss(settings, monkeypatch):
+    calls: list = []
+    _patch_httpx(monkeypatch, calls, get_status=200)
+
+    result = reddit_service.check_subreddit("SomeSub", UA)
+
+    assert result.ok is True
+    assert result.status == "ok"
+    assert result.definitive is True
+    get = next(c for c in calls if c[0] == "GET")
+    assert get[1] == "https://www.reddit.com/r/SomeSub/new.rss"
+    assert get[2] is None  # anonymous, no Authorization
+    assert get[3] == {"limit": 1}  # lightweight: one entry
+
+
+def test_check_subreddit_404_is_definitive_not_found(settings, monkeypatch):
+    calls: list = []
+    _patch_httpx(monkeypatch, calls, get_status=404)
+
+    result = reddit_service.check_subreddit("Typooo", UA)
+
+    assert result.ok is False
+    assert result.status == "not_found"
+    assert result.definitive is True  # this is what blocks a save
+
+
+def test_check_subreddit_403_anonymous_is_ambiguous(settings, monkeypatch):
+    # No credentials: a 403 on the public feed is usually an IP block, not proof
+    # the sub is private — must NOT be definitive (would brick VPS deploys).
+    calls: list = []
+    _patch_httpx(monkeypatch, calls, get_status=403)
+
+    result = reddit_service.check_subreddit("SomeSub", UA)
+
+    assert result.ok is False
+    assert result.status == "forbidden"
+    assert result.definitive is False
+
+
+def test_check_subreddit_403_with_credentials_is_definitive(settings, monkeypatch):
+    settings["reddit_client_id"] = "cid"
+    settings["reddit_client_secret"] = "secret"
+    calls: list = []
+    _patch_httpx(monkeypatch, calls, get_status=403)
+
+    result = reddit_service.check_subreddit("PrivateSub", UA)
+
+    assert result.ok is False
+    assert result.status == "forbidden"
+    assert result.definitive is True  # OAuth 403 = genuinely private/quarantined
+    get = next(c for c in calls if c[0] == "GET")
+    assert get[1] == "https://oauth.reddit.com/r/PrivateSub/about.json"
+
+
+def test_check_subreddit_429_is_not_definitive(settings, monkeypatch):
+    # Reddit rate-limiting the *check* itself must never block a save.
+    calls: list = []
+    _patch_httpx(monkeypatch, calls, get_status=429)
+
+    result = reddit_service.check_subreddit("SomeSub", UA)
+
+    assert result.ok is False
+    assert result.status == "rate_limited"
+    assert result.definitive is False
+
+
+def test_check_subreddit_empty_input(settings):
+    result = reddit_service.check_subreddit("   ", UA)
+    assert result.ok is False
+    assert result.status == "error"
+    assert result.definitive is True
+
+
+def test_check_subreddit_network_error_is_not_definitive(settings, monkeypatch):
+    def boom(**kwargs):
+        raise httpx.ConnectError("no route to host")
+
+    monkeypatch.setattr(reddit_service.httpx, "Client", boom)
+
+    result = reddit_service.check_subreddit("SomeSub", UA)
+
+    assert result.ok is False
+    assert result.status == "error"
+    assert result.definitive is False
+
+
+def test_check_subreddit_200_redirected_to_search_is_not_found(settings, monkeypatch):
+    class RespWithUrl:
+        status_code = 200
+        url = "https://www.reddit.com/search?q=Typooo"
+
+    monkeypatch.setattr(reddit_service.httpx, "Client", lambda **kw: _CtxClient(RespWithUrl()))
+
+    result = reddit_service.check_subreddit("Typooo", UA)
+
+    assert result.ok is False
+    assert result.status == "not_found"
+    assert result.definitive is True
+
+
+class _CtxClient:
+    """Minimal context-manager httpx.Client stub returning a fixed response."""
+
+    def __init__(self, resp):
+        self._resp = resp
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get(self, url, headers=None, params=None):
+        return self._resp
