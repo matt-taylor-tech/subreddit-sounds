@@ -121,8 +121,10 @@ def run_now(
     _csrf: None = Depends(verify_csrf),
 ):
     require_auth(request)
-    run_id = request.app.state.sync_service.run_once(db=db, trigger_type="manual", dry_run=dry_run)
-    return RedirectResponse(url=f"/admin/runs?run_id={run_id}", status_code=status.HTTP_303_SEE_OTHER)
+    run_ids = request.app.state.sync_service.run_all(db=db, trigger_type="manual", dry_run=dry_run)
+    if run_ids:
+        return RedirectResponse(url=f"/admin/runs?run_id={run_ids[0]}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin/runs", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # ---------------------------------------------------------------------------

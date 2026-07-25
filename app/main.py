@@ -33,6 +33,10 @@ class SetupRedirectMiddleware(BaseHTTPMiddleware):
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     run_migrations()
+    # Migrate a pre-existing single-playlist install into one "Default" target.
+    from app.services import targets_service
+
+    targets_service.backfill_default_target()
 
     app.state.sync_service = SyncService()
     app.state.scheduler_manager = SchedulerManager(app.state.sync_service)

@@ -18,6 +18,12 @@ def run_migrations() -> None:
         if "log" not in existing:
             conn.execute(text("ALTER TABLE runs ADD COLUMN log TEXT"))
             conn.commit()
+        if "target_id" not in existing:
+            conn.execute(text("ALTER TABLE runs ADD COLUMN target_id INTEGER"))
+            conn.commit()
+        if "target_label" not in existing:
+            conn.execute(text("ALTER TABLE runs ADD COLUMN target_label TEXT"))
+            conn.commit()
 
 
 def get_db() -> Generator[Session, None, None]:
