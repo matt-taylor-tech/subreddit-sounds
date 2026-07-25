@@ -15,7 +15,7 @@ templates = Jinja2Templates(directory="app/templates", context_processors=[csrf_
 def setup_page(request: Request):
     if settings_service.is_setup_complete():
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-    return templates.TemplateResponse("setup.html", {"request": request, "error": None})
+    return templates.TemplateResponse(request, "setup.html", {"error": None})
 
 
 @router.post("/setup")
@@ -48,8 +48,9 @@ def setup_submit(
 
     if admin_password != admin_password_confirm:
         return templates.TemplateResponse(
+            request,
             "setup.html",
-            {"request": request, "error": "Passwords do not match"},
+            {"error": "Passwords do not match"},
             status_code=400,
         )
 
