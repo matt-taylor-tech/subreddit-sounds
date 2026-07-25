@@ -2,7 +2,13 @@
 {% block content %}
 <div class="card setup-card">
   <h1>First-Time Setup</h1>
-  <p>Fill in the details below. Everything is stored in the local database — there's nothing to configure on disk.</p>
+  <p>This one-time wizard sets up your admin login, connects Reddit and Spotify,
+     and creates your first playlist. It all saves to the local database, and you
+     can add more playlists or change anything later under <strong>Playlists</strong>
+     and <strong>Settings</strong>.</p>
+  <p class="muted-small">Reddit needs no API key (it reads the public RSS feed).
+     Spotify needs a free developer app, linked below. Fields marked optional can be
+     left blank.</p>
 
   {% if error %}
   <p class="error-text">{{ error }}</p>
@@ -11,7 +17,8 @@
   <form method="post" action="/setup">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
 
-    <h2>Admin Account</h2>
+    <h2>1. Admin Account</h2>
+    <p class="muted-small">You'll use these to log in to the admin console.</p>
     <div class="input-block">
       <label for="admin_username">Username</label><br />
       <input id="admin_username" name="admin_username" value="admin" required />
@@ -25,16 +32,16 @@
       <input id="admin_password_confirm" type="password" name="admin_password_confirm" required />
     </div>
 
-    <h2>Reddit</h2>
-    <p>Posts are read from Reddit's public RSS feed — no API key required. OAuth credentials are optional (see below).</p>
+    <h2>2. Reddit</h2>
+    <p>Posts are read from Reddit's public RSS feed, so no API key is required. OAuth credentials are optional (see below).</p>
     <div class="input-block">
       <label for="reddit_subreddit">Subreddit(s) (without r/)</label><br />
-      <input id="reddit_subreddit" name="reddit_subreddit" list="subreddit_options"
-             placeholder="pick a suggestion or type any subreddit" required />
+      <input id="reddit_subreddit" name="reddit_subreddit" class="chipify"
+             data-list="subreddit_options" data-placeholder="type a subreddit, press Enter" />
       <datalist id="subreddit_options">
         {% for sub in subreddit_suggestions %}<option value="{{ sub }}"></option>{% endfor %}
       </datalist>
-      <small class="muted-small">Separate multiple subreddits with commas (e.g. <code>Metal, postrock, jazz</code>); all feed the one playlist. Each is fetched separately and a bad one is skipped.</small>
+      <small class="muted-small">Add one or more; all feed this first playlist. Type a name and press Enter to add it. Each is fetched separately and a bad one is skipped.</small>
     </div>
     <div class="row">
       <div class="input-block flex-1">
@@ -73,8 +80,11 @@
     </div>
     <p><small class="muted-small">Leave blank to use Reddit's public RSS feed. Only fill these in if you already have approved Reddit OAuth credentials — since Reddit's Nov 2025 policy change, new credentials require approval via Reddit's developer support process and can no longer be self-created.</small></p>
 
-    <h2>Spotify API</h2>
-    <p>Create an app at <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>.</p>
+    <h2>3. Spotify</h2>
+    <p>Create a free app at
+       <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>
+       to get a Client ID and Secret. In that app's settings, add the <strong>Redirect URI</strong> below exactly as written.
+       You'll finish connecting Spotify (a one-time OAuth click) from the dashboard after saving.</p>
     <div class="input-block">
       <label for="spotify_client_id">Client ID</label><br />
       <input id="spotify_client_id" name="spotify_client_id" required />
@@ -85,15 +95,16 @@
     </div>
     <div class="input-block">
       <label for="spotify_playlist_id">Playlist ID</label><br />
-      <input id="spotify_playlist_id" name="spotify_playlist_id" placeholder="Paste the ID from your playlist URL" required />
+      <input id="spotify_playlist_id" name="spotify_playlist_id" placeholder="e.g. 1UXnaj6qDYSoQW4745cndy" required />
+      <small class="muted-small">The id in your playlist's share link: <code>open.spotify.com/playlist/&lt;this part&gt;</code>. The app only ever writes to this playlist.</small>
     </div>
     <div class="input-block">
       <label for="spotify_redirect_uri">Redirect URI</label><br />
       <input id="spotify_redirect_uri" name="spotify_redirect_uri" value="http://127.0.0.1:8000/callback" required />
-      <small class="muted-small">Must match exactly what you set in the Spotify app dashboard.</small>
+      <small class="muted-small">Add this exact value to your Spotify app's Redirect URIs. Spotify only allows HTTPS or a loopback address, so if you don't have HTTPS, keep <code>127.0.0.1</code> and do the one-time connect from the host itself (or via a tunnel: <code>ssh -L 8000:localhost:8000 user@host</code>, then open <code>http://127.0.0.1:8000</code> on your own machine). After connecting once, you can manage the app from anywhere.</small>
     </div>
 
-    <h2>Sync Settings</h2>
+    <h2>4. This playlist's sync settings</h2>
     <div class="input-block">
       <label for="spotify_genre_filter">Genre filter for YouTube→Spotify matches (optional)</label><br />
       <input id="spotify_genre_filter" name="spotify_genre_filter" list="genre_options" placeholder="e.g. metal, rock, jazz — leave blank to disable" />
@@ -123,8 +134,8 @@
       </div>
     </div>
 
-    <h2>Bandcamp New Releases (optional)</h2>
-    <p>Supplements Reddit with freshly released tracks from a Bandcamp tag page.</p>
+    <h2>5. Bandcamp new releases (optional)</h2>
+    <p>Supplements Reddit with freshly released tracks from Bandcamp tag pages.</p>
     <div class="input-block">
       <label>
         <input type="checkbox" name="bandcamp_enabled" value="true" />
@@ -132,14 +143,16 @@
       </label>
     </div>
     <div class="input-block">
-      <label for="bandcamp_tag">Bandcamp tag</label><br />
-      <input id="bandcamp_tag" name="bandcamp_tag" list="genre_options" placeholder="e.g. metal, post-rock — the tag slug" />
-      <small class="muted-small">The tag slug from <code>bandcamp.com/tag/&lt;tag&gt;</code>.</small>
+      <label for="bandcamp_tag">Bandcamp tag(s)</label><br />
+      <input id="bandcamp_tag" name="bandcamp_tag" class="chipify"
+             data-list="genre_options" data-placeholder="type a tag, press Enter" />
+      <small class="muted-small">Tag slugs from <code>bandcamp.com/tag/&lt;tag&gt;</code>, e.g. <code>post-rock</code>.</small>
     </div>
 
     <div class="mt-sm">
       <button type="submit">Save and Continue</button>
     </div>
+    <p class="muted-small mt-sm">After saving, connect Spotify from the dashboard, then hit Run now (or a Preview dry run). Add more playlists anytime under Playlists.</p>
   </form>
 </div>
 {% endblock %}

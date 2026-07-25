@@ -18,21 +18,22 @@
     </div>
     <div class="input-block">
       <label for="subreddits">Subreddit(s) (without r/)</label><br />
-      <input id="subreddits" name="subreddits" value="{{ form.subreddits }}" list="subreddit_options"
-             placeholder="pick a suggestion or type any subreddit" required />
+      <input id="subreddits" name="subreddits" value="{{ form.subreddits }}" class="chipify"
+             data-list="subreddit_options" data-placeholder="type a subreddit, press Enter" />
       <datalist id="subreddit_options">
         {% for s in subreddit_suggestions %}<option value="{{ s }}"></option>{% endfor %}
       </datalist>
-      <small class="muted-small">Comma-separate multiple (e.g. <code>Metal, postrock</code>); all feed this playlist.</small>
+      <small class="muted-small">Add as many as you like; all feed this playlist. Each is fetched separately and a bad one is skipped.</small>
     </div>
     <div class="row">
       <div class="input-block flex-1">
         <label for="genre_filter">Genre filter (optional)</label><br />
         <input id="genre_filter" name="genre_filter" value="{{ form.genre_filter }}" list="genre_options"
-               placeholder="e.g. metal — leave blank to disable" />
+               placeholder="leave blank to disable" />
         <datalist id="genre_options">
           {% for g in genre_suggestions %}<option value="{{ g }}"></option>{% endfor %}
         </datalist>
+        <small class="muted-small">A soft keyword, not a fixed list: any word works (the dropdown shows common ones). Blank = no genre filtering.</small>
       </div>
       <div class="input-block flex-1">
         <label for="cap">Max songs in playlist</label><br />
@@ -62,8 +63,8 @@
     </div>
     <div class="input-block">
       <label for="bandcamp_tags">Bandcamp tags</label><br />
-      <input id="bandcamp_tags" name="bandcamp_tags" value="{{ form.bandcamp_tags }}" list="genre_options"
-             placeholder="comma-separated tag slugs, e.g. post-rock, shoegaze" />
+      <input id="bandcamp_tags" name="bandcamp_tags" value="{{ form.bandcamp_tags }}" class="chipify"
+             data-list="genre_options" data-placeholder="type a tag, press Enter" />
     </div>
   </div>
 
