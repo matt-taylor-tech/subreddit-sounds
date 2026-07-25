@@ -141,14 +141,13 @@ def _fetch_all_posts(
     """Fetch each subreddit in turn, concatenating posts.
 
     One failing subreddit is logged and skipped rather than aborting the whole
-    run (mirrors the Bandcamp per-tag handling). Requests are paced between
-    subreddits to respect Reddit's rate limits. Track-level dedup happens later
-    in ``_collect_tracks``, so overlapping posts across subreddits are fine.
+    run (mirrors the Bandcamp per-tag handling). Reddit requests are paced
+    process-wide inside reddit_service, so no explicit spacing is needed here.
+    Track-level dedup happens later in ``_collect_tracks``, so overlapping posts
+    across subreddits are fine.
     """
     all_posts: list[dict] = []
-    for i, sub in enumerate(subreddits):
-        if i > 0:
-            reddit_service.pace_next_call(log)
+    for sub in subreddits:
         try:
             posts = reddit_service.fetch_posts(sub, user_agent, sort, timeframe, log=log)
             log(f"  r/{sub}: fetched {len(posts)} post(s)")

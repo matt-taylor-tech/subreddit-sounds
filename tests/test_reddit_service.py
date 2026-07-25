@@ -72,6 +72,15 @@ class FakeClient:
         return FakeResp(status, text=self._get_text, payload=self._get_json)
 
 
+@pytest.fixture(autouse=True)
+def _reset_throttle():
+    # Reset the process-wide Reddit throttle so tests don't pollute each other.
+    # With last-request at 0 and real monotonic() >> the delay window, _throttle
+    # never sleeps in the plain fetch tests (only the dedicated throttle tests,
+    # which install a fake clock, exercise the wait).
+    reddit_service._last_request_at = 0.0
+
+
 @pytest.fixture
 def settings(monkeypatch):
     store: dict[str, str] = {}
@@ -261,20 +270,44 @@ def test_request_delay_invalid_falls_back(settings):
     assert reddit_service.request_delay_seconds() == 2.0
 
 
-def test_pace_next_call_sleeps_and_logs(settings, monkeypatch):
+def _fake_clock(monkeypatch, start=1000.0):
+    clock = [start]
+    monkeypatch.setattr(reddit_service.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(reddit_service.time, "sleep", lambda s: clock.__setitem__(0, clock[0] + s))
+    return clock
+
+
+def test_throttle_first_call_does_not_wait(settings, monkeypatch):
+    # Last request was long ago (well before the window) -> no added latency.
+    reddit_service._last_request_at = 0.0
+    clock = _fake_clock(monkeypatch, start=10_000.0)
     slept: list = []
-    monkeypatch.setattr(reddit_service.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(reddit_service.time, "sleep", lambda s: slept.append(s) or clock.__setitem__(0, clock[0] + s))
     logs: list = []
-    reddit_service.pace_next_call(logs.append)
-    assert len(slept) == 1 and slept[0] >= 2.0
+    reddit_service._throttle(logs.append)
+    assert slept == []
+    assert reddit_service._last_request_at == 10_000.0
+
+
+def test_throttle_spaces_back_to_back_calls(settings, monkeypatch):
+    # A second request only 0.5s after the last waits out the ~2s window.
+    clock = _fake_clock(monkeypatch, start=1000.5)
+    reddit_service._last_request_at = 1000.0
+    slept: list = []
+    monkeypatch.setattr(reddit_service.time, "sleep", lambda s: slept.append(s) or clock.__setitem__(0, clock[0] + s))
+    logs: list = []
+    reddit_service._throttle(logs.append)
+    assert len(slept) == 1 and 1.5 <= slept[0] <= 2.0  # ~1.5s remaining + jitter
     assert any("pacing" in m for m in logs)
 
 
-def test_pace_next_call_noop_when_delay_zero(settings, monkeypatch):
+def test_throttle_noop_when_delay_zero(settings, monkeypatch):
     settings["reddit_request_delay_sec"] = "0"
+    _fake_clock(monkeypatch)
+    reddit_service._last_request_at = 999.9
     slept: list = []
     monkeypatch.setattr(reddit_service.time, "sleep", lambda s: slept.append(s))
-    reddit_service.pace_next_call()
+    reddit_service._throttle(lambda m: None)
     assert slept == []
 
 
