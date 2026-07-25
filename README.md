@@ -8,6 +8,9 @@ It's self-hosted: one Docker container, a SQLite file, and a small web admin
 console. No config files and no API keys on disk — everything is set up in the
 browser on first run.
 
+> **Live example:** a public playlist this keeps updated automatically →
+> [open in Spotify](https://open.spotify.com/playlist/1UXnaj6qDYSoQW4745cndy)
+
 ## What it does
 
 Once a day (default 07:00, configurable), Subreddit Sounds:
@@ -39,6 +42,16 @@ subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks
   all settings live in the database, never in the repo or image.
 - **Sessions:** the cookie-signing key is auto-generated and persisted to the
   data volume on first run — nothing to configure.
+
+## Screenshots
+
+**Dashboard** — status, next scheduled run, and manual controls:
+
+![Subreddit Sounds dashboard](screenshots/dashboard.png)
+
+**Run history** — every sync with its full log:
+
+![Subreddit Sounds run history](screenshots/runs.png)
 
 ## Requirements
 
