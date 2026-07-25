@@ -85,60 +85,49 @@ sudo usermod -aG docker $USER
 
 ---
 
-### Step 3 — Authenticate to GitHub to clone your private repo
+### Step 3 — Clone the repo
 
-You need to prove to GitHub who you are. The simplest way is a **Personal Access Token (PAT)**.
-
-**Create a PAT on GitHub:**
-
-1. Go to <https://github.com/settings/tokens>
-1. Click **Generate new token (classic)**
-1. Give it a name like `debian-server`
-1. Check the `repo` scope
-1. Click **Generate token** and copy it — you only see it once
-
-**Clone the repo on your server** (replace `YOUR_GITHUB_USERNAME` and the repo name):
+The repository is public, so no authentication is needed:
 
 ```bash
 cd ~
-git clone https://YOUR_GITHUB_USERNAME:YOUR_PAT_HERE@github.com/YOUR_GITHUB_USERNAME/ListigeClone.git
+git clone https://github.com/matt-taylor-tech/ListigeClone.git
 cd ListigeClone
 ```
-
-> Your PAT is used only in this URL and is not stored anywhere else. If you
-> prefer SSH keys instead, GitHub has a guide at
-> <https://docs.github.com/en/authentication/connecting-to-github-with-ssh>.
 
 ---
 
 ### Step 4 — Create your `.env` file
 
-Copy the example and fill in your credentials:
+Copy the example and set the two required values:
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-At minimum set these values (the rest can stay as defaults for now):
+`.env` only needs these — **all** API credentials (Reddit, Spotify), the admin
+login, and sync options are entered later in the web setup wizard and stored in
+the database, not in this file:
 
 ```
-SECRET_KEY=some-long-random-string
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=a-strong-password
-
-REDDIT_CLIENT_ID=your_reddit_app_id
-REDDIT_CLIENT_SECRET=your_reddit_app_secret
-
-SPOTIFY_CLIENT_ID=your_spotify_app_id
-SPOTIFY_CLIENT_SECRET=your_spotify_app_secret
-SPOTIFY_PLAYLIST_ID=the_id_from_your_playlist_url
+ENVIRONMENT=production
+SECRET_KEY=paste-a-generated-value-here
 ```
+
+Generate a strong `SECRET_KEY` with:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+In production the app refuses to start if `SECRET_KEY` is left as a placeholder,
+so this step is mandatory.
 
 Save and exit nano with `Ctrl+O`, `Enter`, `Ctrl+X`.
 
-> **Security:** `.env` is in `.gitignore` so it will never be committed. Do
-> not share it or paste it anywhere.
+> **Security:** `.env` is in `.gitignore` so it is never committed. Do not
+> share it or paste it anywhere.
 
 ---
 
@@ -254,11 +243,26 @@ cp ~/ListigeClone/data/listige.db ~/listige-backup-$(date +%Y%m%d).db
 
 ---
 
+## Running on a different port
+
+The container always listens on `8000` internally; you choose the **host** port.
+
+- **docker run:** change the left side of `-p`, e.g. `-p 9000:8000` serves it on host port 9000.
+- **docker compose:** set `APP_PORT` in `.env` (e.g. `APP_PORT=9000`); it defaults to 8000.
+
+## Security
+
+- Set `ENVIRONMENT=production` and a generated `SECRET_KEY` in `.env` (see Step 4).
+  The app will not start in production with a placeholder key.
+- Change the default admin credentials during the first-run setup wizard.
+- For internet-facing access, put it behind Nginx with a free TLS cert via
+  Certbot rather than exposing port 8000 directly.
+- All API secrets live in the database volume, never in the repo or image.
+
 ## Debian Deployment Notes
 
 - Keep `.env` outside version control — it already is via `.gitignore`.
 - Back up `~/ListigeClone/data/listige.db` regularly.
-- For internet-facing access add Nginx + a free TLS cert via Certbot.
 - Scheduler timezone is controlled by `SYNC_TIMEZONE=America/New_York` in `.env`.
 
 ## Tests
