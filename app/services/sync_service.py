@@ -1,22 +1,20 @@
+from collections.abc import Callable
 from datetime import datetime
 from threading import Lock
-from typing import Callable
 
 import httpx
 from sqlalchemy.orm import Session
 
 from app.models import Run
-from app.services import reddit_service, settings_service, spotify_service
+from app.services import bandcamp_service, reddit_service, settings_service, spotify_service
 from app.services.link_resolver import (
     classify_url,
-    clean_youtube_title,
     derive_artist_from_channel,
     extract_spotify_track_id,
     extract_youtube_video_id,
     is_full_album,
     parse_youtube_title,
 )
-from app.services import bandcamp_service
 from app.services.reconcile import reconcile_latest_cap
 
 
@@ -82,7 +80,9 @@ def _collect_tracks(
             artist, query = parse_youtube_title(yt_title)
             if not artist:
                 artist = derive_artist_from_channel(yt_channel)
-            track_id = spotify_service.search_track(query, artist=artist, genre_filter=genre_filter, min_duration_ms=min_duration_ms)
+            track_id = spotify_service.search_track(
+                query, artist=artist, genre_filter=genre_filter, min_duration_ms=min_duration_ms
+            )
             if track_id and track_id not in seen:
                 seen.add(track_id)
                 track_ids.append(track_id)
@@ -107,7 +107,9 @@ def _collect_bandcamp_tracks(
     track_ids: list[str] = []
     for item in tracks:
         artist, title = item["artist"], item["title"]
-        track_id = spotify_service.search_track(title, artist=artist, genre_filter=genre_filter, min_duration_ms=min_duration_ms)
+        track_id = spotify_service.search_track(
+            title, artist=artist, genre_filter=genre_filter, min_duration_ms=min_duration_ms
+        )
         if track_id and track_id not in seen:
             seen.add(track_id)
             track_ids.append(track_id)
@@ -137,9 +139,7 @@ class SyncService:
 
         try:
             subreddit = settings_service.get("reddit_subreddit", "MelodicDeathMetal")
-            user_agent = settings_service.get(
-                "reddit_user_agent", "web:subreddit-sounds:0.1 (by /u/suiifelse)"
-            )
+            user_agent = settings_service.get("reddit_user_agent", "web:subreddit-sounds:0.1 (by /u/suiifelse)")
             sort = settings_service.get("reddit_sort", "top")
             timeframe = settings_service.get("reddit_timeframe", "week")
             sync_cap = int(settings_service.get("sync_cap", "25"))
@@ -165,7 +165,9 @@ class SyncService:
                 db.commit()
                 return run.id
 
-            new_track_ids, low_conf = _collect_tracks(posts, log, genre_filter=genre_filter, min_duration_ms=min_duration_ms)
+            new_track_ids, low_conf = _collect_tracks(
+                posts, log, genre_filter=genre_filter, min_duration_ms=min_duration_ms
+            )
             log(f"Resolved {len(new_track_ids)} unique track(s) from Reddit ({low_conf} via YouTube title search)")
 
             # --- Bandcamp ---

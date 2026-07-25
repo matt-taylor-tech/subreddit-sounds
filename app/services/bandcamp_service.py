@@ -35,9 +35,7 @@ def fetch_new_tracks(tag: str, limit: int = 30) -> list[dict]:
     data = r.json()
 
     if "results" not in data:
-        raise RuntimeError(
-            f"Unexpected Bandcamp discover API response (keys: {list(data.keys())})"
-        )
+        raise RuntimeError(f"Unexpected Bandcamp discover API response (keys: {list(data.keys())})")
 
     tracks = []
     for item in data["results"]:

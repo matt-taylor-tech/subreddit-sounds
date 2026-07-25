@@ -7,3 +7,13 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# Pyflakes (F), a safe subset of pycodestyle (E), import sorting (I), and
+# pyupgrade (UP) modernizations. Deliberately excludes opinionated/bugbear
+# rules that fight intentional patterns here (e.g. FastAPI's Depends()/Form()
+# defaults, and per-source blind-except error isolation in the sync pipeline).
+select = ["E4", "E7", "E9", "F", "I", "UP"]
