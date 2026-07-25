@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ "Edit playlist" if target_id else "Add a playlist" }}</h1>
+{% if error %}<p class="error-text">{{ error }}</p>{% endif %}
+
+<form method="post" action="{{ action }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+  <div class="card">
+    <div class="input-block">
+      <label for="name">Name</label><br />
+      <input id="name" name="name" value="{{ form.name }}" placeholder="e.g. Metal" />
+    </div>
+    <div class="input-block">
+      <label for="playlist_id">Spotify Playlist ID</label><br />
+      <input id="playlist_id" name="playlist_id" value="{{ form.playlist_id }}"
+             placeholder="Paste the ID from your playlist URL" required />
+    </div>
+    <div class="input-block">
+      <label for="subreddits">Subreddit(s) (without r/)</label><br />
+      <input id="subreddits" name="subreddits" value="{{ form.subreddits }}" list="subreddit_options"
+             placeholder="pick a suggestion or type any subreddit" required />
+      <datalist id="subreddit_options">
+        {% for s in subreddit_suggestions %}<option value="{{ s }}"></option>{% endfor %}
+      </datalist>
+      <small class="muted-small">Comma-separate multiple (e.g. <code>Metal, postrock</code>); all feed this playlist.</small>
+    </div>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="genre_filter">Genre filter (optional)</label><br />
+        <input id="genre_filter" name="genre_filter" value="{{ form.genre_filter }}" list="genre_options"
+               placeholder="e.g. metal — leave blank to disable" />
+        <datalist id="genre_options">
+          {% for g in genre_suggestions %}<option value="{{ g }}"></option>{% endfor %}
+        </datalist>
+      </div>
+      <div class="input-block flex-1">
+        <label for="cap">Max songs in playlist</label><br />
+        <input id="cap" name="cap" type="number" min="1" max="500" value="{{ form.cap }}" required />
+      </div>
+    </div>
+    <div class="row">
+      <div class="input-block flex-1">
+        <label for="sync_hour">Run hour (0–23)</label><br />
+        <input id="sync_hour" name="sync_hour" type="number" min="0" max="23" value="{{ form.sync_hour }}" required />
+      </div>
+      <div class="input-block flex-1">
+        <label for="sync_minute">Run minute (0–59)</label><br />
+        <input id="sync_minute" name="sync_minute" type="number" min="0" max="59" value="{{ form.sync_minute }}" required />
+      </div>
+    </div>
+    <small class="muted-small">Runs daily at this time (your global timezone from Settings).</small>
+  </div>
+
+  <div class="card">
+    <h2>Bandcamp (optional)</h2>
+    <div class="input-block">
+      <label>
+        <input type="checkbox" name="bandcamp_enabled" value="true" {{ 'checked' if form.bandcamp_enabled }} />
+        Supplement with Bandcamp new releases
+      </label>
+    </div>
+    <div class="input-block">
+      <label for="bandcamp_tags">Bandcamp tags</label><br />
+      <input id="bandcamp_tags" name="bandcamp_tags" value="{{ form.bandcamp_tags }}" list="genre_options"
+             placeholder="comma-separated tag slugs, e.g. post-rock, shoegaze" />
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Manual deletions</h2>
+    <div class="input-block">
+      <label>
+        <input type="checkbox" name="blocklist_enabled" value="true" {{ 'checked' if form.blocklist_enabled }} />
+        Make manual deletions stick
+      </label>
+      <small class="muted-small">When on, a track you remove from this playlist by hand won't be re-added, even if it's still trending. Tracks the app trimmed at the cap can still resurface.</small>
+    </div>
+  </div>
+
+  <button type="submit">Save playlist</button>
+</form>
+
+{% if target_id %}
+<div class="card">
+  <h2>Blocked tracks{% if blocked_tracks %} ({{ blocked_tracks|length }}){% endif %}</h2>
+  {% if blocked_tracks %}
+  <p class="muted-small">These won't be re-added to this playlist. Remove one to allow it back.</p>
+  {% for tid, label in blocked_tracks %}
+  <div style="display:flex; align-items:center; gap:0.6rem; margin:0.3rem 0;">
+    <form action="/admin/targets/{{ target_id }}/blocklist/remove" method="post" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <input type="hidden" name="track_id" value="{{ tid }}" />
+      <button type="submit">Remove</button>
+    </form>
+    <span>{{ label }}</span>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="muted-small">No blocked tracks. Deletions you make in Spotify will appear here once the feature is on and a sync runs.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
