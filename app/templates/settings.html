@@ -160,6 +160,16 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>Notifications</h2>
+    <div class="input-block">
+      <label for="notify_webhook_url">Failure webhook URL <span class="muted-small">(optional)</span></label><br />
+      <input id="notify_webhook_url" name="notify_webhook_url" value="{{ settings.notify_webhook_url }}"
+             placeholder="https://… — leave blank to disable" style="width:100%;" />
+      <small class="muted-small">If set, a failed sync run POSTs a JSON alert here (works with Discord, Slack, ntfy, Apprise). Leave blank for no notifications.</small>
+    </div>
+  </div>
+
   <button type="submit">Save Settings</button>
 
 </form>

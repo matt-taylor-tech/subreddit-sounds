@@ -194,6 +194,7 @@ def _settings_context() -> dict:
         "bandcamp_tags": all_tags_str,
         "bandcamp_tag_list": tag_list,
         "bandcamp_enabled_set": enabled_set,
+        "notify_webhook_url": settings_service.get("notify_webhook_url", ""),
     }
 
 
@@ -231,6 +232,7 @@ def settings_save(
     bc_tag_list: str = Form(""),
     bc_enabled: list[str] = Form(default=[]),
     new_bc_tag: str = Form(""),
+    notify_webhook_url: str = Form(""),
 ):
     require_auth(request)
 
@@ -279,6 +281,7 @@ def settings_save(
         "reddit_sort": reddit_sort,
         "reddit_timeframe": reddit_timeframe,
         "reddit_client_id": reddit_client_id.strip(),
+        "notify_webhook_url": notify_webhook_url.strip(),
         "sync_cap": str(sync_cap),
         "min_track_duration_sec": str(max(0, min_track_duration_sec)),
         "sync_timezone": sync_timezone.strip(),
