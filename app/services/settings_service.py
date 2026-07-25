@@ -20,7 +20,7 @@ DEFAULTS: dict[str, str] = {
     "sync_hour": "7",
     "sync_minute": "0",
     "sync_timezone": "America/New_York",
-    "reddit_user_agent": "web:listige-clone:0.1 (by /u/suiifelse)",
+    "reddit_user_agent": "web:subreddit-sounds:0.1 (by /u/suiifelse)",
     "reddit_subreddit": "MelodicDeathMetal",
     "reddit_sort": "top",
     "reddit_timeframe": "week",

@@ -52,10 +52,10 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    app_name: str = Field(default="Listige Clone", alias="APP_NAME")
+    app_name: str = Field(default="Subreddit Sounds", alias="APP_NAME")
     environment: str = Field(default="development", alias="ENVIRONMENT")
     secret_key: str = Field(default="", alias="SECRET_KEY")
-    database_url: str = Field(default="sqlite:///./data/listige.db", alias="DATABASE_URL")
+    database_url: str = Field(default="sqlite:///./data/subreddit-sounds.db", alias="DATABASE_URL")
 
     @model_validator(mode="after")
     def _resolve_secret_key(self) -> "Settings":

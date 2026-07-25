@@ -4,7 +4,7 @@ import pytest
 
 from app.services import reddit_service
 
-UA = "web:listige-clone:0.1 (by /u/suiifelse)"
+UA = "web:subreddit-sounds:0.1 (by /u/suiifelse)"
 
 # Minimal Reddit Atom feed: one external-link post and one self/text post.
 ATOM = """<?xml version="1.0" encoding="UTF-8"?>

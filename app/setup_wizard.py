@@ -56,7 +56,7 @@ def setup_submit(
         "reddit_subreddit": reddit_subreddit,
         "reddit_sort": reddit_sort,
         "reddit_timeframe": reddit_timeframe,
-        "reddit_user_agent": reddit_user_agent.strip() or "web:listige-clone:0.1 (by /u/suiifelse)",
+        "reddit_user_agent": reddit_user_agent.strip() or "web:subreddit-sounds:0.1 (by /u/suiifelse)",
         "reddit_client_id": reddit_client_id.strip(),
         "reddit_client_secret": reddit_client_secret.strip(),
         "spotify_client_id": spotify_client_id,
