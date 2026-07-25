@@ -82,6 +82,15 @@ def put_many(pairs: dict[str, str]) -> None:
         db.close()
 
 
+def all_items() -> list[tuple[str, str, bool]]:
+    """Return every stored setting as (key, value, is_secret). Used by export."""
+    db = SessionLocal()
+    try:
+        return [(row.key, row.value, row.is_secret) for row in db.query(AppSetting).all()]
+    finally:
+        db.close()
+
+
 def is_setup_complete() -> bool:
     """Return True once the first-run wizard has been submitted."""
     return bool(get("admin_password_hash"))
