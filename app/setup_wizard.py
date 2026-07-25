@@ -52,28 +52,30 @@ def setup_submit(
             status_code=400,
         )
 
-    settings_service.put_many({
-        "admin_username": admin_username,
-        "admin_password_hash": hash_password(admin_password),
-        "reddit_subreddit": reddit_subreddit,
-        "reddit_sort": reddit_sort,
-        "reddit_timeframe": reddit_timeframe,
-        "reddit_user_agent": reddit_user_agent.strip() or "web:subreddit-sounds:0.1 (by /u/suiifelse)",
-        "reddit_client_id": reddit_client_id.strip(),
-        "reddit_client_secret": reddit_client_secret.strip(),
-        "spotify_client_id": spotify_client_id,
-        "spotify_client_secret": spotify_client_secret,
-        "spotify_playlist_id": spotify_playlist_id,
-        "spotify_redirect_uri": spotify_redirect_uri,
-        "sync_cap": str(sync_cap),
-        "sync_timezone": sync_timezone,
-        "sync_hour": str(sync_hour),
-        "sync_minute": str(sync_minute),
-        "sync_enabled": "true",
-        "spotify_genre_filter": spotify_genre_filter.strip(),
-        "bandcamp_enabled": "true" if bandcamp_enabled == "true" else "false",
-        "bandcamp_tag": bandcamp_tag.strip() or "melodic-death-metal",
-    })
+    settings_service.put_many(
+        {
+            "admin_username": admin_username,
+            "admin_password_hash": hash_password(admin_password),
+            "reddit_subreddit": reddit_subreddit,
+            "reddit_sort": reddit_sort,
+            "reddit_timeframe": reddit_timeframe,
+            "reddit_user_agent": reddit_user_agent.strip() or "web:subreddit-sounds:0.1 (by /u/suiifelse)",
+            "reddit_client_id": reddit_client_id.strip(),
+            "reddit_client_secret": reddit_client_secret.strip(),
+            "spotify_client_id": spotify_client_id,
+            "spotify_client_secret": spotify_client_secret,
+            "spotify_playlist_id": spotify_playlist_id,
+            "spotify_redirect_uri": spotify_redirect_uri,
+            "sync_cap": str(sync_cap),
+            "sync_timezone": sync_timezone,
+            "sync_hour": str(sync_hour),
+            "sync_minute": str(sync_minute),
+            "sync_enabled": "true",
+            "spotify_genre_filter": spotify_genre_filter.strip(),
+            "bandcamp_enabled": "true" if bandcamp_enabled == "true" else "false",
+            "bandcamp_tag": bandcamp_tag.strip() or "melodic-death-metal",
+        }
+    )
 
     # Start the daily scheduler now that credentials are available.
     scheduler_manager = getattr(request.app.state, "scheduler_manager", None)
