@@ -64,6 +64,25 @@ subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks
 - Optionally, **Reddit API** credentials for higher rate limits (the public RSS
   feed works without them).
 
+## Quick start (prebuilt image)
+
+The fastest path: pull the published multi-arch image (amd64 + arm64, so it runs
+on a Raspberry Pi too) and run it, no clone or local build needed.
+
+```bash
+docker run -d \
+  --name subreddit-sounds \
+  --restart unless-stopped \
+  -p 8000:8000 \
+  -v subreddit-sounds-data:/app/data \
+  ghcr.io/matt-taylor-tech/subreddit-sounds:latest
+```
+
+Then open `http://localhost:8000/` and complete the setup wizard. To serve on
+another host port, change the left side of `-p` (e.g. `-p 9000:8000`).
+
+Prefer to build from source? Use one of the two options below.
+
 ## Quick start (Docker Compose)
 
 ```bash
