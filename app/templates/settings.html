@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% block title %}Settings · Subreddit Sounds{% endblock %}
 {% block content %}
 <h1>Settings</h1>
 
 {% if saved %}
-<p style="color: var(--accent);">&#10003; Settings saved.</p>
+<p class="ok-text" role="status">&#10003; Settings saved.</p>
 {% endif %}
 
 {% if error %}
@@ -49,7 +50,9 @@
       </div>
       <div class="input-block flex-1">
         <label for="reddit_client_secret">OAuth Client Secret</label><br />
-        <input id="reddit_client_secret" name="reddit_client_secret" value="{{ settings.reddit_client_secret }}" />
+        <input id="reddit_client_secret" name="reddit_client_secret" type="password" autocomplete="off"
+               placeholder="{{ 'stored, leave blank to keep it' if settings.reddit_client_secret_set else 'not set' }}" />
+        <small class="muted-small">Never shown once saved. Type a new value only to replace it.</small>
       </div>
     </div>
     <small class="muted-small">By default, posts are read from Reddit's public RSS feed. Since Reddit's Nov 2025 Responsible Builder Policy, new OAuth credentials require approval via Reddit's developer support process.</small>
@@ -87,8 +90,9 @@
       </div>
       <div class="input-block flex-1">
         <label for="spotify_client_secret">Client Secret</label><br />
-        <input id="spotify_client_secret" name="spotify_client_secret" value="{{ settings.spotify_client_secret }}" />
-        <small class="muted-small">Leave blank to keep the existing secret.</small>
+        <input id="spotify_client_secret" name="spotify_client_secret" type="password" autocomplete="off"
+               placeholder="{{ 'stored, leave blank to keep it' if settings.spotify_client_secret_set else 'not set' }}" />
+        <small class="muted-small">Never shown once saved. Type a new value only to replace it.</small>
       </div>
     </div>
     <div class="input-block">
@@ -97,9 +101,9 @@
       <small class="muted-small">Must match exactly what's set in the Spotify app dashboard. After changing, re-authorize below.</small>
     </div>
     {% if settings.spotify_connected %}
-    <p style="color: var(--accent);">&#10003; Connected — <a href="/spotify/authorize">Re-authorize</a></p>
+    <p class="ok-text">&#10003; Connected. <a href="/spotify/authorize">Re-authorize</a></p>
     {% else %}
-    <p style="color: #fca5a5;">&#10007; Not connected — save settings first, then <a href="/spotify/authorize">authorize here</a>.</p>
+    <p class="error-text">&#10007; Not connected. Save settings first, then <a href="/spotify/authorize">authorize here</a>.</p>
     {% endif %}
   </div>
 
@@ -108,7 +112,7 @@
     <div class="input-block">
       <label for="notify_webhook_url">Failure webhook URL <span class="muted-small">(optional)</span></label><br />
       <input id="notify_webhook_url" name="notify_webhook_url" value="{{ settings.notify_webhook_url }}"
-             placeholder="https://… — leave blank to disable" style="width:100%;" />
+             placeholder="https://… (leave blank to disable)" />
       <small class="muted-small">If set, a failed sync run POSTs a JSON alert here (works with Discord, Slack, ntfy, Apprise).</small>
     </div>
   </div>
@@ -118,25 +122,26 @@
 
 <div class="card">
   <h2>Import / Export</h2>
-  {% if imported %}<p style="color: var(--accent);">&#10003; Configuration imported.</p>{% endif %}
+  {% if imported %}<p class="ok-text" role="status">&#10003; Configuration imported.</p>{% endif %}
   <p class="muted-small">Back up or move your playlists and global settings as a JSON file.</p>
 
-  <form method="post" action="/admin/settings/export" style="margin-bottom:1rem;">
+  <form method="post" action="/admin/settings/export" class="mb-md">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <label>
       <input type="checkbox" name="include_secrets" value="true" />
       Include secrets (API keys, tokens, admin password hash)
     </label>
     <small class="muted-small">Leave off for a safe-to-share file. If checked, the download contains credentials, so store it securely.</small>
-    <div class="mt-sm"><button type="submit">Export settings</button></div>
+    <div class="mt-sm"><button type="submit" class="btn-secondary">Export settings</button></div>
   </form>
 
-  <form method="post" action="/admin/settings/import" enctype="multipart/form-data">
+  <form method="post" action="/admin/settings/import" enctype="multipart/form-data"
+        data-confirm="Import settings? This replaces all of your current playlists and global settings with the contents of the file, and cannot be undone.">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <label for="import_file">Import a settings file</label><br />
     <input id="import_file" type="file" name="file" accept="application/json,.json" required />
     <small class="muted-small">Replaces your current playlists and applies the settings from the file. A file exported without secrets won't restore credentials, so you'll re-connect Spotify afterward.</small>
-    <div class="mt-sm"><button type="submit">Import settings</button></div>
+    <div class="mt-sm"><button type="submit" class="btn-danger">Import settings</button></div>
   </form>
 </div>
 {% endblock %}

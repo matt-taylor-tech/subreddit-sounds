@@ -90,7 +90,7 @@ def test_runs_page_has_both_buttons():
     assert 'name="dry_run" value="true"' in html
     assert 'name="dry_run" value="false"' in html
     assert "Preview (dry run)" in html
-    assert "Run Now" in html
+    assert "Run now" in html  # sentence case, matching the Playlists page
 
 
 def test_highlighted_run_log_auto_expands():

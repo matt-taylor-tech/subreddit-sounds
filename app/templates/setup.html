@@ -2,6 +2,7 @@
 {% block page_data %}
 <script type="application/json" id="genre-taxonomy">{{ genre_taxonomy|tojson }}</script>
 {% endblock %}
+{% block title %}First-time setup · Subreddit Sounds{% endblock %}
 {% block content %}
 <div class="card setup-card">
   <h1>First-Time Setup</h1>
@@ -24,15 +25,15 @@
     <p class="muted-small">You'll use these to log in to the admin console.</p>
     <div class="input-block">
       <label for="admin_username">Username</label><br />
-      <input id="admin_username" name="admin_username" value="admin" required />
+      <input id="admin_username" name="admin_username" value="admin" autocomplete="username" required />
     </div>
     <div class="input-block">
       <label for="admin_password">Password</label><br />
-      <input id="admin_password" type="password" name="admin_password" required />
+      <input id="admin_password" type="password" name="admin_password" autocomplete="new-password" required />
     </div>
     <div class="input-block">
       <label for="admin_password_confirm">Confirm Password</label><br />
-      <input id="admin_password_confirm" type="password" name="admin_password_confirm" required />
+      <input id="admin_password_confirm" type="password" name="admin_password_confirm" autocomplete="new-password" required />
     </div>
 
     <h2>2. Reddit</h2>
@@ -78,7 +79,7 @@
       </div>
       <div class="input-block flex-1">
         <label for="reddit_client_secret">OAuth Client Secret</label><br />
-        <input id="reddit_client_secret" name="reddit_client_secret" />
+        <input id="reddit_client_secret" name="reddit_client_secret" type="password" autocomplete="off" />
       </div>
     </div>
     <p><small class="muted-small">Leave blank to use Reddit's public RSS feed. Only fill these in if you already have approved Reddit OAuth credentials — since Reddit's Nov 2025 policy change, new credentials require approval via Reddit's developer support process and can no longer be self-created.</small></p>
@@ -94,7 +95,7 @@
     </div>
     <div class="input-block">
       <label for="spotify_client_secret">Client Secret</label><br />
-      <input id="spotify_client_secret" name="spotify_client_secret" required />
+      <input id="spotify_client_secret" name="spotify_client_secret" type="password" autocomplete="off" required />
     </div>
     <div class="input-block">
       <label for="spotify_playlist_id">Playlist ID</label><br />

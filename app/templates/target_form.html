@@ -2,6 +2,7 @@
 {% block page_data %}
 <script type="application/json" id="genre-taxonomy">{{ genre_taxonomy|tojson }}</script>
 {% endblock %}
+{% block title %}{{ "Edit playlist" if target_id else "Add a playlist" }} · Subreddit Sounds{% endblock %}
 {% block content %}
 <h1>{{ "Edit playlist" if target_id else "Add a playlist" }}</h1>
 {% if error %}<p class="error-text">{{ error }}</p>{% endif %}

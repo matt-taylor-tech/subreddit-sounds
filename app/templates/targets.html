@@ -1,36 +1,44 @@
 {% extends "base.html" %}
+{% block title %}Playlists · Subreddit Sounds{% endblock %}
 {% block content %}
 <h1>Playlists</h1>
-<p><a href="/admin/targets/new"><button type="button">+ Add a playlist</button></a></p>
+<p><a class="btn" href="/admin/targets/new">+ Add a playlist</a></p>
 
 {% for t in targets %}
 <div class="card">
   <h2>
     {{ t.name }}
-    {% if not t.enabled %}<span class="muted-small">(disabled)</span>{% endif %}
+    {% if not t.enabled %}<span class="pill">paused</span>{% endif %}
   </h2>
   <p class="muted-small">
     Playlist
     <a href="https://open.spotify.com/playlist/{{ t.playlist_id }}" target="_blank" rel="noopener">{{ t.playlist_id }}</a>
-    &middot; cap {{ t.cap }}
+    &middot; up to {{ t.cap }} songs
     &middot; daily {{ "%02d:%02d" | format(t.sync_hour, t.sync_minute) }}
-    {% if next_runs.get(t.id) %}&middot; next {{ next_runs[t.id].strftime("%Y-%m-%d %H:%M") }}{% endif %}
+    {% if next_runs.get(t.id) %}&middot; next {{ next_runs[t.id].strftime("%Y-%m-%d %H:%M") }}
+    {% elif not t.enabled %}&middot; paused, no runs scheduled{% endif %}
   </p>
   <p>Subreddits: {{ t.subreddits }}{% if t.genre_filter %} &middot; genre: {{ t.genre_filter }}{% endif %}</p>
-  <div style="display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center;">
-    <a href="/admin/targets/{{ t.id }}/edit"><button type="button">Edit</button></a>
-    <form action="/admin/targets/{{ t.id }}/run" method="post" style="display:inline; gap:0.4rem;">
+  <div class="actions">
+    {# Run now writes to Spotify, so it's the primary action here; everything
+       else is supporting, and Delete is marked destructive. #}
+    <form action="/admin/targets/{{ t.id }}/run" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      <button type="submit" name="dry_run" value="true">Preview</button>
       <button type="submit" name="dry_run" value="false">Run now</button>
+      <button type="submit" name="dry_run" value="true" class="btn-secondary">Preview</button>
     </form>
-    <form action="/admin/targets/{{ t.id }}/toggle" method="post" style="display:inline">
+    <a class="btn btn-secondary" href="/admin/targets/{{ t.id }}/edit">Edit</a>
+    <form action="/admin/targets/{{ t.id }}/toggle" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      <button type="submit">{{ "Disable" if t.enabled else "Enable" }}</button>
+      <button type="submit" class="btn-secondary">{{ "Pause" if t.enabled else "Resume" }}</button>
     </form>
-    <form action="/admin/targets/{{ t.id }}/delete" method="post" style="display:inline">
+    {# data-confirm, not inline JS: the playlist name is arbitrary user text, and
+       any quote in it would break a hand-built JS string and silently skip the
+       prompt. Jinja escapes it correctly as an attribute value. #}
+    <form action="/admin/targets/{{ t.id }}/delete" method="post"
+          data-confirm="Delete the playlist {{ t.name }}? This removes it from Subreddit Sounds, along with its block-list and genre scan. Your Spotify playlist and its tracks are left alone.">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-      <button type="submit" style="color:#fca5a5;">Delete</button>
+      <button type="submit" class="btn-danger" aria-label="Delete playlist {{ t.name }}">Delete</button>
     </form>
   </div>
 </div>
