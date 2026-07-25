@@ -18,9 +18,11 @@ Either way, ``fetch_posts`` yields the same shape the resolver expects:
 
 from __future__ import annotations
 
+import random
 import re
 import time
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 
 import httpx
 
@@ -35,6 +37,17 @@ _ATOM = "{http://www.w3.org/2005/Atom}"
 # content (the entry's own <link> always points to the comments page).
 _LINK_ANCHOR = re.compile(r'<a\s+href="([^"]+)"\s*>\s*\[link\]', re.IGNORECASE)
 
+# Reddit's public RSS feed is rate-limited; a transient 429 shouldn't abort the
+# whole sync. Retry a couple of times with exponential backoff (honouring a
+# Retry-After header when present) before giving up.
+_MAX_ATTEMPTS = 3
+_BACKOFF_BASE = 2.0  # seconds
+_MAX_BACKOFF = 30.0  # cap any single wait
+
+
+def _noop_log(_msg: str) -> None:
+    pass
+
 
 def has_credentials() -> bool:
     """True when both a Reddit client ID and secret are configured."""
@@ -45,12 +58,68 @@ def has_credentials() -> bool:
 
 
 def fetch_posts(
-    subreddit: str, user_agent: str, sort: str = "top", timeframe: str = "week", limit: int = 100
+    subreddit: str,
+    user_agent: str,
+    sort: str = "top",
+    timeframe: str = "week",
+    limit: int = 100,
+    log: Callable[[str], None] | None = None,
 ) -> list[dict]:
-    """Fetch a subreddit listing, using OAuth JSON when credentials exist, else RSS."""
+    """Fetch a subreddit listing, using OAuth JSON when credentials exist, else RSS.
+
+    ``log`` receives a message for each rate-limit retry so it surfaces in the
+    run log; it defaults to a no-op for callers that don't need it.
+    """
+    log = log or _noop_log
     if has_credentials():
-        return _fetch_via_oauth(subreddit, user_agent, sort, timeframe, limit)
-    return _fetch_via_rss(subreddit, user_agent, sort, timeframe, limit)
+        return _fetch_via_oauth(subreddit, user_agent, sort, timeframe, limit, log)
+    return _fetch_via_rss(subreddit, user_agent, sort, timeframe, limit, log)
+
+
+# ---------------------------------------------------------------------------
+# Shared HTTP GET with rate-limit retry
+# ---------------------------------------------------------------------------
+
+def _retry_delay(response: httpx.Response, attempt: int) -> float:
+    """Seconds to wait before the next attempt: Retry-After if given, else backoff."""
+    retry_after = response.headers.get("Retry-After")
+    if retry_after:
+        try:
+            return min(float(retry_after), _MAX_BACKOFF)
+        except ValueError:
+            pass
+    backoff = min(_BACKOFF_BASE * (2 ** (attempt - 1)), _MAX_BACKOFF)
+    return backoff + random.uniform(0, 1)  # jitter to avoid thundering herd
+
+
+def _get_with_retry(
+    client: httpx.Client,
+    url: str,
+    *,
+    headers: dict,
+    params: dict,
+    subreddit: str,
+    user_agent: str,
+    log: Callable[[str], None],
+) -> httpx.Response:
+    """GET ``url``, retrying on 429 with backoff. 403 (hard block) fails at once."""
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
+        r = client.get(url, headers=headers, params=params)
+        if r.status_code == 429:
+            if attempt < _MAX_ATTEMPTS:
+                delay = _retry_delay(r, attempt)
+                log(
+                    f"Reddit rate-limited r/{subreddit} (429) — retrying in "
+                    f"{delay:.0f}s (retry {attempt}/{_MAX_ATTEMPTS - 1})"
+                )
+                time.sleep(delay)
+                continue
+            raise RuntimeError(_blocked_message(429, subreddit, user_agent))
+        if r.status_code == 403:
+            raise RuntimeError(_blocked_message(403, subreddit, user_agent))
+        r.raise_for_status()
+        return r
+    raise RuntimeError(_blocked_message(429, subreddit, user_agent))  # exhausted
 
 
 # ---------------------------------------------------------------------------
@@ -58,17 +127,18 @@ def fetch_posts(
 # ---------------------------------------------------------------------------
 
 def _fetch_via_rss(
-    subreddit: str, user_agent: str, sort: str, timeframe: str, limit: int
+    subreddit: str, user_agent: str, sort: str, timeframe: str, limit: int,
+    log: Callable[[str], None],
 ) -> list[dict]:
     params: dict = {"limit": limit}
     if sort == "top":
         params["t"] = timeframe
     url = f"{_PUBLIC_API}/r/{subreddit}/{sort}.rss"
     with httpx.Client(follow_redirects=True, timeout=15) as client:
-        r = client.get(url, headers={"User-Agent": user_agent}, params=params)
-        if r.status_code in (403, 429):
-            raise RuntimeError(_blocked_message(r.status_code, subreddit, user_agent))
-        r.raise_for_status()
+        r = _get_with_retry(
+            client, url, headers={"User-Agent": user_agent}, params=params,
+            subreddit=subreddit, user_agent=user_agent, log=log,
+        )
         body = r.text
     return _parse_atom(body)
 
@@ -101,7 +171,8 @@ def _parse_atom(body: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def _fetch_via_oauth(
-    subreddit: str, user_agent: str, sort: str, timeframe: str, limit: int
+    subreddit: str, user_agent: str, sort: str, timeframe: str, limit: int,
+    log: Callable[[str], None],
 ) -> list[dict]:
     params: dict = {"limit": limit}
     if sort == "top":
@@ -112,10 +183,10 @@ def _fetch_via_oauth(
     }
     url = f"{_OAUTH_API}/r/{subreddit}/{sort}.json"
     with httpx.Client(follow_redirects=True, timeout=15) as client:
-        r = client.get(url, headers=headers, params=params)
-        if r.status_code in (403, 429):
-            raise RuntimeError(_blocked_message(r.status_code, subreddit, user_agent))
-        r.raise_for_status()
+        r = _get_with_retry(
+            client, url, headers=headers, params=params,
+            subreddit=subreddit, user_agent=user_agent, log=log,
+        )
     return r.json()["data"]["children"]
 
 
