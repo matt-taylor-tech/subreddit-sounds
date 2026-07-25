@@ -142,6 +142,24 @@ That's it: no `.env`, no secrets on disk.
 
 Your database and secret key live in the data volume, so they survive upgrades.
 
+**Prebuilt image (recommended):** pull the new `:latest` and recreate the container.
+
+```bash
+docker pull ghcr.io/matt-taylor-tech/subreddit-sounds:latest
+docker stop subreddit-sounds && docker rm subreddit-sounds
+docker run -d \
+  --name subreddit-sounds \
+  --restart unless-stopped \
+  -p 8000:8000 \
+  -v subreddit-sounds-data:/app/data \
+  ghcr.io/matt-taylor-tech/subreddit-sounds:latest
+```
+
+New images are published automatically for each tagged release. To pin a version
+instead of tracking `latest`, use a tag like `:0.1.0`.
+
+Prefer to build from source? Use one of the options below.
+
 **Docker Compose:**
 
 ```bash
