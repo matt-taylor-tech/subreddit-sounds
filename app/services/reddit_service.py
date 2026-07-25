@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import random
 import re
+import threading
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -114,19 +115,30 @@ def request_delay_seconds() -> float:
     return max(0.0, delay)
 
 
-def pace_next_call(log: Callable[[str], None] | None = None) -> None:
-    """Sleep the inter-request politeness delay before another Reddit call.
+_rate_lock = threading.Lock()
+_last_request_at = 0.0  # time.monotonic() of the last Reddit request, process-wide
 
-    A no-op when the configured delay is zero (or a single request is being
-    made). Callers invoke this *between* fetches, not before the first.
+
+def _throttle(log: Callable[[str], None]) -> None:
+    """Space Reddit requests process-wide to avoid bursting past the rate limit.
+
+    Blocks until at least ``request_delay_seconds()`` has elapsed since the last
+    Reddit request, across all subreddits, targets, and scheduler threads. So a
+    fan-out — many subreddits in one run, a manual run-all, or several targets
+    scheduled at the same minute (which fire on separate threads) — is serialized
+    and spaced instead of hammering Reddit. A once-daily single-source sync never
+    waits, since the previous request was hours ago (no added latency).
     """
-    log = log or _noop_log
+    global _last_request_at
     delay = request_delay_seconds()
-    if delay <= 0:
-        return
-    wait = delay + random.uniform(0, 0.5)  # jitter
-    log(f"  pacing {wait:.1f}s before next Reddit request (rate-limit courtesy)")
-    time.sleep(wait)
+    with _rate_lock:
+        if delay > 0:
+            wait = _last_request_at + delay - time.monotonic()
+            if wait > 0:
+                wait += random.uniform(0, 0.5)  # jitter
+                log(f"  pacing {wait:.1f}s (Reddit rate-limit courtesy)")
+                time.sleep(wait)
+        _last_request_at = time.monotonic()
 
 
 def first_definitive_problem(subreddits: list[str], user_agent: str) -> SubredditCheck | None:
@@ -255,6 +267,7 @@ def _get_with_retry(
     log: Callable[[str], None],
 ) -> httpx.Response:
     """GET ``url``, retrying on 429 with backoff. 403 (hard block) fails at once."""
+    _throttle(log)  # process-wide spacing so fan-out doesn't burst past the rate limit
     for attempt in range(1, _MAX_ATTEMPTS + 1):
         r = client.get(url, headers=headers, params=params)
         if r.status_code == 429:

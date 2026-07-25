@@ -45,7 +45,6 @@ def _common(monkeypatch):
     monkeypatch.setattr(S.settings_service, "get", lambda k, d="": _GLOBAL.get(k, d))
     monkeypatch.setattr(S.reddit_service, "fetch_posts", lambda *a, **k: [])
     monkeypatch.setattr(S.reddit_service, "has_credentials", lambda: False)
-    monkeypatch.setattr(S.reddit_service, "pace_next_call", lambda log=None: None)
     notified: list = []
     monkeypatch.setattr(S.notify_service, "notify_run_failed", lambda run: notified.append(run.id))
     return notified

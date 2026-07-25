@@ -43,7 +43,6 @@ def _wire(monkeypatch, *, feed_by_sub, playlist_by_id):
         S.reddit_service, "fetch_posts", lambda sub, *a, **k: [_sp(t) for t in feed_by_sub.get(sub, [])]
     )
     monkeypatch.setattr(S.reddit_service, "has_credentials", lambda: False)
-    monkeypatch.setattr(S.reddit_service, "pace_next_call", lambda log=None: None)
     added: list = []
     monkeypatch.setattr(S.spotify_service, "is_connected", lambda: True)
     monkeypatch.setattr(S.spotify_service, "get_playlist_track_ids", lambda pid: list(playlist_by_id.get(pid, [])))
