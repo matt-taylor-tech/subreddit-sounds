@@ -284,6 +284,12 @@ def _select_best_track(
             known_genres = genres_by_id.get(primary_artist_id, []) if primary_artist_id else []
             if known_genres and not _genre_matches(known_genres, wanted_genres):
                 continue
+            # Spotify leaves ~1 in 4 artists unclassified, mostly small ones. That
+            # normally passes rather than dropping a good track. But on the hinted
+            # path the only evidence is a title match, so "no genre data" must not
+            # become the loophole that lets an off-genre track in.
+            if not known_genres and artist_is_hint:
+                continue
 
         score = title_overlap * _TITLE_OVERLAP_WEIGHT + artist_overlap * _ARTIST_OVERLAP_WEIGHT
         score += track.get("popularity", 0) * _POPULARITY_WEIGHT

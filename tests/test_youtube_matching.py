@@ -155,6 +155,67 @@ def test_genre_filter_uses_one_quoted_term_in_the_query(monkeypatch):
     assert queries[0][0] == 'Ashes genre:"metal"'
 
 
+def _one(artist_id="a1", name="Ashes", pop=50):
+    return [
+        {
+            "id": "cand",
+            "name": name,
+            "duration_ms": 240000,
+            "popularity": pop,
+            "artists": [{"id": artist_id, "name": "Unknown Band"}],
+        }
+    ]
+
+
+def test_genre_filtered_target_keeps_a_verified_hint_match():
+    # Hinted artist, but Spotify confirms the genre: this is a real gain over the
+    # old behaviour, which dropped the post entirely.
+    out = _select_best_track(
+        _one(),
+        query="Ashes",
+        artist="Some Channel",
+        artist_is_hint=True,
+        genre_filter="melodic death metal",
+        artist_genres_by_id={"a1": ["melodic death metal"]},
+    )
+    assert out == "cand"
+
+
+def test_genre_filtered_target_rejects_an_unverifiable_hint_match():
+    # Same low-confidence path, but the artist has no genres, so nothing confirms
+    # it belongs. Must not slip past the filter.
+    out = _select_best_track(
+        _one(),
+        query="Ashes",
+        artist="Some Channel",
+        artist_is_hint=True,
+        genre_filter="melodic death metal",
+        artist_genres_by_id={"a1": []},
+    )
+    assert out is None
+
+
+def test_unclassified_artist_still_passes_on_the_trusted_path():
+    # No genre data plus a title-parsed artist keeps the old lenient behaviour, so
+    # existing playlists don't suddenly lose tracks.
+    out = _select_best_track(
+        _one(),
+        query="Ashes",
+        artist="Unknown Band",
+        artist_is_hint=False,
+        genre_filter="melodic death metal",
+        artist_genres_by_id={"a1": []},
+    )
+    assert out == "cand"
+
+
+def test_no_genre_filter_leaves_the_hint_path_permissive():
+    # Without a genre filter there is nothing to verify against, so a hint match
+    # is still allowed through.
+    out = _select_best_track(_one(), query="Ashes", artist="Some Channel", artist_is_hint=True)
+    assert out == "cand"
+
+
 def test_genre_filter_still_rejects_a_genuine_mismatch():
     items = [
         {
