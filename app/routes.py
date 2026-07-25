@@ -1,3 +1,4 @@
+import re
 import secrets
 from datetime import datetime
 from urllib.parse import urlencode
@@ -195,6 +196,8 @@ def _settings_context() -> dict:
         "bandcamp_tag_list": tag_list,
         "bandcamp_enabled_set": enabled_set,
         "notify_webhook_url": settings_service.get("notify_webhook_url", ""),
+        "blocklist_enabled": settings_service.get("blocklist_enabled", "false"),
+        "blocklist_ids": settings_service.get("blocklist_ids", ""),
     }
 
 
@@ -233,6 +236,8 @@ def settings_save(
     bc_enabled: list[str] = Form(default=[]),
     new_bc_tag: str = Form(""),
     notify_webhook_url: str = Form(""),
+    blocklist_enabled: str = Form("false"),
+    blocklist_ids: str = Form(""),
 ):
     require_auth(request)
 
@@ -287,6 +292,9 @@ def settings_save(
         "sync_timezone": sync_timezone.strip(),
         "sync_hour": str(sync_hour),
         "sync_minute": str(sync_minute),
+        "blocklist_enabled": "true" if blocklist_enabled == "true" else "false",
+        # Accept comma- or newline/space-separated ids from the textarea; store canonical.
+        "blocklist_ids": ",".join(t for t in re.split(r"[\s,]+", blocklist_ids) if t),
         "bandcamp_enabled": "true" if bandcamp_enabled == "true" else "false",
         "bandcamp_tags": ",".join(all_tags),
         "bandcamp_enabled_tags": ",".join(bc_enabled),

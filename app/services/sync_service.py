@@ -15,7 +15,12 @@ from app.services.link_resolver import (
     is_full_album,
     parse_youtube_title,
 )
-from app.services.reconcile import reconcile_latest_cap
+from app.services.reconcile import apply_blocklist, reconcile_latest_cap
+
+
+def _parse_ids(raw: str) -> list[str]:
+    """Split a comma-separated track-id string into a clean list (order preserved)."""
+    return [t.strip() for t in raw.split(",") if t.strip()]
 
 
 def _youtube_meta(video_id: str) -> tuple[str | None, str | None]:
@@ -228,6 +233,22 @@ class SyncService:
             current_ids = spotify_service.get_playlist_track_ids(playlist_id)
             log(f"Playlist currently has {len(current_ids)} track(s)")
 
+            # --- Block-list (optional): make manual deletions stick ---
+            blocklist_enabled = settings_service.get("blocklist_enabled", "false") == "true"
+            blocked: set[str] = set()
+            if blocklist_enabled:
+                blocked = set(_parse_ids(settings_service.get("blocklist_ids", "")))
+                last_desired = _parse_ids(settings_service.get("last_desired_ids", ""))
+                new_track_ids, blocked, newly_blocked = apply_blocklist(
+                    new_track_ids, current_ids, last_desired, blocked
+                )
+                if newly_blocked:
+                    log(
+                        f"Block-list: {len(newly_blocked)} track(s) you removed by hand will not be "
+                        f"re-added: {', '.join(track_info.get(t, t) for t in newly_blocked)}"
+                    )
+                log(f"Block-list active: {len(blocked)} track(s) blocked from re-adding")
+
             # --- Reconcile ---
             desired_ids = reconcile_latest_cap(current_ids, new_track_ids, sync_cap)
             current_set = set(current_ids)
@@ -255,6 +276,16 @@ class SyncService:
                     log(f"Removed {len(to_remove)} track(s)")
                 if not to_add and not to_remove:
                     log("Playlist already up to date — no changes needed")
+
+            # Persist block-list state for next run (real runs only): the growing
+            # block-list, and the desired set used to detect the next deletion.
+            if blocklist_enabled and not dry_run:
+                settings_service.put_many(
+                    {
+                        "blocklist_ids": ",".join(sorted(blocked)),
+                        "last_desired_ids": ",".join(desired_ids),
+                    }
+                )
 
             run.added_count = len(to_add) if not dry_run else 0
             run.removed_count = len(to_remove) if not dry_run else 0
