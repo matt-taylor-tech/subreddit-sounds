@@ -51,10 +51,7 @@ def _noop_log(_msg: str) -> None:
 
 def has_credentials() -> bool:
     """True when both a Reddit client ID and secret are configured."""
-    return bool(
-        settings_service.get("reddit_client_id")
-        and settings_service.get("reddit_client_secret")
-    )
+    return bool(settings_service.get("reddit_client_id") and settings_service.get("reddit_client_secret"))
 
 
 def fetch_posts(
@@ -79,6 +76,7 @@ def fetch_posts(
 # ---------------------------------------------------------------------------
 # Shared HTTP GET with rate-limit retry
 # ---------------------------------------------------------------------------
+
 
 def _retry_delay(response: httpx.Response, attempt: int) -> float:
     """Seconds to wait before the next attempt: Retry-After if given, else backoff."""
@@ -126,8 +124,13 @@ def _get_with_retry(
 # Public RSS feed (no credentials required)
 # ---------------------------------------------------------------------------
 
+
 def _fetch_via_rss(
-    subreddit: str, user_agent: str, sort: str, timeframe: str, limit: int,
+    subreddit: str,
+    user_agent: str,
+    sort: str,
+    timeframe: str,
+    limit: int,
     log: Callable[[str], None],
 ) -> list[dict]:
     params: dict = {"limit": limit}
@@ -136,8 +139,13 @@ def _fetch_via_rss(
     url = f"{_PUBLIC_API}/r/{subreddit}/{sort}.rss"
     with httpx.Client(follow_redirects=True, timeout=15) as client:
         r = _get_with_retry(
-            client, url, headers={"User-Agent": user_agent}, params=params,
-            subreddit=subreddit, user_agent=user_agent, log=log,
+            client,
+            url,
+            headers={"User-Agent": user_agent},
+            params=params,
+            subreddit=subreddit,
+            user_agent=user_agent,
+            log=log,
         )
         body = r.text
     return _parse_atom(body)
@@ -170,8 +178,13 @@ def _parse_atom(body: str) -> list[dict]:
 # Application-only OAuth (used only when credentials are configured)
 # ---------------------------------------------------------------------------
 
+
 def _fetch_via_oauth(
-    subreddit: str, user_agent: str, sort: str, timeframe: str, limit: int,
+    subreddit: str,
+    user_agent: str,
+    sort: str,
+    timeframe: str,
+    limit: int,
     log: Callable[[str], None],
 ) -> list[dict]:
     params: dict = {"limit": limit}
@@ -184,8 +197,13 @@ def _fetch_via_oauth(
     url = f"{_OAUTH_API}/r/{subreddit}/{sort}.json"
     with httpx.Client(follow_redirects=True, timeout=15) as client:
         r = _get_with_retry(
-            client, url, headers=headers, params=params,
-            subreddit=subreddit, user_agent=user_agent, log=log,
+            client,
+            url,
+            headers=headers,
+            params=params,
+            subreddit=subreddit,
+            user_agent=user_agent,
+            log=log,
         )
     return r.json()["data"]["children"]
 
@@ -216,10 +234,12 @@ def _get_access_token(user_agent: str) -> str:
             )
         r.raise_for_status()
     data = r.json()
-    settings_service.put_many({
-        "reddit_access_token": data["access_token"],
-        "reddit_token_expiry": str(time.time() + data.get("expires_in", 3600)),
-    })
+    settings_service.put_many(
+        {
+            "reddit_access_token": data["access_token"],
+            "reddit_token_expiry": str(time.time() + data.get("expires_in", 3600)),
+        }
+    )
     return data["access_token"]
 
 

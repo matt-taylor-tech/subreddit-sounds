@@ -33,11 +33,7 @@ async def verify_csrf(request: Request) -> None:
     expected = request.session.get(_SESSION_KEY)
     form = await request.form()
     submitted = form.get(FORM_FIELD)
-    if (
-        not expected
-        or not submitted
-        or not secrets.compare_digest(str(submitted), str(expected))
-    ):
+    if not expected or not submitted or not secrets.compare_digest(str(submitted), str(expected)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid or missing CSRF token — reload the page and try again.",

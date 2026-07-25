@@ -80,9 +80,7 @@ def settings(monkeypatch):
 
 
 def _patch_httpx(monkeypatch, calls, **resp):
-    monkeypatch.setattr(
-        reddit_service.httpx, "Client", lambda **kw: FakeClient(calls, **resp, **kw)
-    )
+    monkeypatch.setattr(reddit_service.httpx, "Client", lambda **kw: FakeClient(calls, **resp, **kw))
 
 
 def test_rss_feed_used_when_no_credentials(settings, monkeypatch):
