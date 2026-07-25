@@ -6,12 +6,13 @@
   <h2>Manual Run</h2>
   <form action="/admin/run" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <label>
-      <input type="checkbox" name="dry_run" value="true" />
-      Dry run (fetch Reddit + show what would change, no Spotify write)
-    </label>
-    <div class="mt-sm">
-      <button type="submit">Run Now</button>
+    <p class="muted-small">
+      <strong>Preview</strong> fetches Reddit and shows exactly what would change, without writing to Spotify.
+      <strong>Run Now</strong> applies the changes.
+    </p>
+    <div class="mt-sm" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+      <button type="submit" name="dry_run" value="true">Preview (dry run)</button>
+      <button type="submit" name="dry_run" value="false">Run Now</button>
     </div>
   </form>
 </div>
@@ -51,7 +52,7 @@
       {% if run.log %}
       <tr>
         <td colspan="9">
-          <details>
+          <details{% if highlight_run_id and run.id == highlight_run_id %} open{% endif %}>
             <summary style="cursor:pointer;color:#888;font-size:0.85em;">show log</summary>
             <pre style="margin:0.5em 0 0.5em 1em;font-size:0.82em;white-space:pre-wrap;">{{ run.log }}</pre>
           </details>
