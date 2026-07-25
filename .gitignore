@@ -1,9 +1,7 @@
 __pycache__/
 *.py[cod]
 *.pyo
-# .env is intentionally tracked while setting up across machines.
-# Remove this comment and uncomment the line below once stable:
-# .env
+.env
 .venv/
 venv/
 data/
