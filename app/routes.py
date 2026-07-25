@@ -31,7 +31,7 @@ def healthz() -> dict[str, str]:
 
 @router.get("/login")
 def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(request, "login.html", {"error": None})
 
 
 @router.post("/login")
@@ -44,8 +44,9 @@ def login_submit(
     locked_for = login_throttle.seconds_remaining(request)
     if locked_for > 0:
         return templates.TemplateResponse(
+            request,
             "login.html",
-            {"request": request, "error": f"Too many failed attempts. Try again in {int(locked_for) + 1}s."},
+            {"error": f"Too many failed attempts. Try again in {int(locked_for) + 1}s."},
             status_code=429,
         )
     stored_hash = settings_service.get("admin_password_hash")
@@ -55,9 +56,7 @@ def login_submit(
         request.session["is_authenticated"] = True
         return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
     login_throttle.record_failure(request)
-    return templates.TemplateResponse(
-        "login.html", {"request": request, "error": "Invalid credentials"}, status_code=401
-    )
+    return templates.TemplateResponse(request, "login.html", {"error": "Invalid credentials"}, status_code=401)
 
 
 @router.get("/logout")
@@ -90,9 +89,9 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
             pass
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
-            "request": request,
             "latest_run": latest_run,
             "next_run": next_run,
             "sync_timezone": settings_service.get("sync_timezone"),
@@ -109,7 +108,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 def runs(request: Request, db: Session = Depends(get_db), run_id: int | None = None):
     require_auth(request)
     run_items = db.query(Run).order_by(desc(Run.id)).limit(100).all()
-    return templates.TemplateResponse("runs.html", {"request": request, "runs": run_items, "highlight_run_id": run_id})
+    return templates.TemplateResponse(request, "runs.html", {"runs": run_items, "highlight_run_id": run_id})
 
 
 @router.post("/admin/run")
@@ -201,8 +200,9 @@ def _settings_context() -> dict:
 def settings_page(request: Request):
     require_auth(request)
     return templates.TemplateResponse(
+        request,
         "settings.html",
-        {"request": request, "settings": _settings_context(), "saved": False},
+        {"settings": _settings_context(), "saved": False},
     )
 
 
@@ -279,6 +279,7 @@ def settings_save(
     request.app.state.scheduler_manager.reschedule()
 
     return templates.TemplateResponse(
+        request,
         "settings.html",
-        {"request": request, "settings": _settings_context(), "saved": True},
+        {"settings": _settings_context(), "saved": True},
     )
