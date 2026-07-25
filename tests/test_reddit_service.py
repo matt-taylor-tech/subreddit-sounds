@@ -24,10 +24,11 @@ ATOM = """<?xml version="1.0" encoding="UTF-8"?>
 
 
 class FakeResp:
-    def __init__(self, status, *, text="", payload=None):
+    def __init__(self, status, *, text="", payload=None, headers=None):
         self.status_code = status
         self.text = text
         self._payload = payload or {}
+        self.headers = headers or {}
 
     def json(self):
         return self._payload
@@ -38,11 +39,16 @@ class FakeResp:
 
 
 class FakeClient:
-    """Records every request; returns RSS text for GETs, a token for POSTs."""
+    """Records every request; returns RSS text for GETs, a token for POSTs.
 
-    def __init__(self, calls, *, get_status=200, get_text=ATOM, get_json=None, **kwargs):
+    ``get_statuses`` (a list) returns a different status per GET, repeating the
+    last one once exhausted — used to simulate a 429 that later recovers.
+    """
+
+    def __init__(self, calls, *, get_status=200, get_statuses=None, get_text=ATOM, get_json=None, **kwargs):
         self._calls = calls
         self._get_status = get_status
+        self._get_statuses = list(get_statuses) if get_statuses else None
         self._get_text = get_text
         self._get_json = get_json or {"data": {"children": [{"data": {"url": "u", "title": "t"}}]}}
 
@@ -58,7 +64,11 @@ class FakeClient:
 
     def get(self, url, headers=None, params=None):
         self._calls.append(("GET", url, (headers or {}).get("Authorization"), params))
-        return FakeResp(self._get_status, text=self._get_text, payload=self._get_json)
+        if self._get_statuses:
+            status = self._get_statuses.pop(0) if len(self._get_statuses) > 1 else self._get_statuses[0]
+        else:
+            status = self._get_status
+        return FakeResp(status, text=self._get_text, payload=self._get_json)
 
 
 @pytest.fixture
@@ -150,7 +160,9 @@ def test_rss_403_raises_actionable_error(settings, monkeypatch):
     assert "RSS" in msg
 
 
-def test_429_message_mentions_rate_limit(settings, monkeypatch):
+def test_429_persistent_retries_then_raises(settings, monkeypatch):
+    slept: list = []
+    monkeypatch.setattr(reddit_service.time, "sleep", lambda s: slept.append(s))
     calls: list = []
     _patch_httpx(monkeypatch, calls, get_status=429)
 
@@ -159,3 +171,35 @@ def test_429_message_mentions_rate_limit(settings, monkeypatch):
 
     assert "429" in str(exc.value)
     assert "rate" in str(exc.value).lower()
+    # retried up to the cap before giving up: 3 GETs, 2 backoff sleeps
+    assert sum(1 for c in calls if c[0] == "GET") == 3
+    assert len(slept) == 2
+
+
+def test_429_retries_then_succeeds(settings, monkeypatch):
+    slept: list = []
+    monkeypatch.setattr(reddit_service.time, "sleep", lambda s: slept.append(s))
+    calls: list = []
+    _patch_httpx(monkeypatch, calls, get_statuses=[429, 200])
+    logs: list = []
+
+    posts = reddit_service.fetch_posts("X", UA, "top", "week", log=logs.append)
+
+    assert len(slept) == 1  # one backoff, then success
+    assert sum(1 for c in calls if c[0] == "GET") == 2
+    assert any("429" in m and "retry" in m.lower() for m in logs)
+    assert posts[0]["data"]["url"] == "https://youtu.be/abc123"
+
+
+def test_403_not_retried(settings, monkeypatch):
+    slept: list = []
+    monkeypatch.setattr(reddit_service.time, "sleep", lambda s: slept.append(s))
+    calls: list = []
+    _patch_httpx(monkeypatch, calls, get_status=403)
+
+    with pytest.raises(RuntimeError):
+        reddit_service.fetch_posts("X", UA, "top", "week")
+
+    # a hard block fails immediately: one GET, no backoff
+    assert sum(1 for c in calls if c[0] == "GET") == 1
+    assert slept == []

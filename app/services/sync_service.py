@@ -152,7 +152,7 @@ class SyncService:
             label = f"{sort}/{timeframe}" if sort == "top" else sort
             log(f"Fetching r/{subreddit} [{label}] (limit=100)")
             auth_label = "OAuth API" if reddit_service.has_credentials() else "public RSS"
-            posts = reddit_service.fetch_posts(subreddit, user_agent, sort, timeframe)
+            posts = reddit_service.fetch_posts(subreddit, user_agent, sort, timeframe, log=log)
             log(f"Fetched {len(posts)} posts via {auth_label} — resolving links...")
 
             if not spotify_service.is_connected():
