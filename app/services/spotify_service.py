@@ -126,18 +126,60 @@ def search_track(
     artist: str | None = None,
     genre_filter: str | None = None,
     min_duration_ms: int | None = None,
+    artist_is_hint: bool = False,
 ) -> str | None:
     """Return the best Spotify track ID matching query, or None.
 
-    When artist is provided, uses field-filtered search (artist:"X" track:"Y"),
-    and ranks candidates by title/artist token overlap. When genre_filter is set,
-    candidates with known non-matching artist genres are rejected. Tracks shorter
-    than min_duration_ms are treated as no match.
+    A *known* artist (parsed from the title, or a "- Topic" channel) drives a
+    field-filtered search (artist:"X" track:"Y") and rejects candidates by a
+    different artist.
+
+    A *hinted* artist (``artist_is_hint``) is a bare channel name, which is
+    sometimes the artist's own upload and sometimes a label or curator. Both are
+    tried, precise first: the field-filtered search nails the self-upload case,
+    and only if it comes back empty do we fall back to a freetext search where the
+    hint merely boosts ranking. Searching artist:"Majestic Casual" alone would
+    return nothing and lose the post entirely.
+
+    When genre_filter is set, candidates with known non-matching artist genres are
+    rejected. Tracks shorter than min_duration_ms are treated as no match.
     """
     if artist:
-        q = f'artist:"{artist}" track:"{query}"'
-    else:
-        q = f"{query} genre:{genre_filter}" if genre_filter else query
+        precise = _search_and_select(
+            f'artist:"{artist}" track:"{query}"',
+            query=query,
+            artist=artist,
+            genre_filter=genre_filter,
+            min_duration_ms=min_duration_ms,
+            artist_is_hint=False,
+        )
+        if precise or not artist_is_hint:
+            return precise
+
+    # Only the first genre term is usable as a search filter; every term still
+    # applies as a rejection term in _select_best_track. Quoted so multi-word
+    # genres survive.
+    terms = _genre_terms(genre_filter)
+    q = f'{query} genre:"{terms[0]}"' if terms else query
+    return _search_and_select(
+        q,
+        query=query,
+        artist=artist,
+        genre_filter=genre_filter,
+        min_duration_ms=min_duration_ms,
+        artist_is_hint=True,
+    )
+
+
+def _search_and_select(
+    q: str,
+    query: str,
+    artist: str | None,
+    genre_filter: str | None,
+    min_duration_ms: int | None,
+    artist_is_hint: bool,
+) -> str | None:
+    """Run one Spotify track search for ``q`` and pick the best candidate."""
     token = get_access_token()
     artist_genres_by_id: dict[str, list[str]] = {}
     with httpx.Client() as client:
@@ -174,6 +216,7 @@ def search_track(
         genre_filter=genre_filter,
         artist_genres_by_id=artist_genres_by_id,
         min_duration_ms=min_duration_ms,
+        artist_is_hint=artist_is_hint,
     )
 
 
@@ -189,9 +232,19 @@ def _genre_terms(genre_filter: str | None) -> list[str]:
     return [part.strip().lower() for part in genre_filter.split(",") if part.strip()]
 
 
+def _fold(value: str) -> str:
+    """Fold punctuation to single spaces so slugs match Spotify's own spelling.
+
+    Spotify writes its genres with spaces and ampersands ("math rock", "r&b"),
+    so a hyphenated term like "math-rock" would otherwise substring-match
+    nothing and silently reject every classified artist.
+    """
+    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+
+
 def _genre_matches(artist_genres: list[str], wanted_terms: list[str]) -> bool:
-    lowered = [g.lower() for g in artist_genres]
-    return any(term in genre for term in wanted_terms for genre in lowered)
+    folded = [_fold(g) for g in artist_genres]
+    return any(_fold(term) in genre for term in wanted_terms for genre in folded)
 
 
 def _select_best_track(
@@ -201,6 +254,7 @@ def _select_best_track(
     genre_filter: str | None = None,
     artist_genres_by_id: dict[str, list[str]] | None = None,
     min_duration_ms: int | None = None,
+    artist_is_hint: bool = False,
 ) -> str | None:
     query_tokens = _tokenize(query)
     artist_tokens = _tokenize(artist)
@@ -220,7 +274,9 @@ def _select_best_track(
         artists = track.get("artists", [])
         candidate_artist_tokens = _tokenize(" ".join(a.get("name", "") for a in artists if isinstance(a, dict)))
         artist_overlap = len(artist_tokens & candidate_artist_tokens) if artist_tokens else 0
-        if artist_tokens and artist_overlap == 0:
+        # A hinted artist may be a curator/label channel, so a mismatch means
+        # "no evidence", not "wrong track". It still boosts score when it agrees.
+        if artist_tokens and artist_overlap == 0 and not artist_is_hint:
             continue
 
         if wanted_genres and artists and isinstance(artists[0], dict):

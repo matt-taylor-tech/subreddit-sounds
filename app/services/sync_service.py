@@ -20,6 +20,7 @@ from app.services.link_resolver import (
     extract_spotify_track_id,
     extract_youtube_video_id,
     is_full_album,
+    is_topic_channel,
     parse_youtube_title,
 )
 from app.services.reconcile import apply_blocklist, reconcile_latest_cap
@@ -90,18 +91,33 @@ def _collect_tracks(
                 log(f"  [youtube] skipped (full album)  —  {yt_title[:70]}")
                 continue
             artist, query = parse_youtube_title(yt_title)
+            # An artist read off the title, or off a "{Artist} - Topic" channel,
+            # is trustworthy. A bare channel name is a guess (it may be a label
+            # or curator), so it only nudges ranking instead of gating the match.
+            artist_is_hint = False
             if not artist:
                 artist = derive_artist_from_channel(yt_channel)
+                artist_is_hint = not is_topic_channel(yt_channel)
+            source = "guess from channel" if artist_is_hint else "artist"
             track_id = spotify_service.search_track(
-                query, artist=artist, genre_filter=genre_filter, min_duration_ms=min_duration_ms
+                query,
+                artist=artist,
+                genre_filter=genre_filter,
+                min_duration_ms=min_duration_ms,
+                artist_is_hint=artist_is_hint,
             )
             if track_id and track_id not in seen:
                 seen.add(track_id)
                 track_ids.append(track_id)
                 low_confidence += 1
-                log(f"  [youtube→spotify] {track_id}  —  {yt_title[:70]}  (artist hint: {artist or 'none'})")
+                log(f"  [youtube→spotify] {track_id}  —  {yt_title[:70]}  ({source}: {artist or 'none'})")
             elif not track_id:
-                log(f"  [youtube] no Spotify match for: {yt_title[:70]}  (artist hint: {artist or 'none'})")
+                log(f"  [youtube] no Spotify match for: {yt_title[:70]}  ({source}: {artist or 'none'})")
+
+        else:
+            # Bandcamp / SoundCloud / article links aren't resolved yet. Logged so
+            # the run history shows what a subreddit is contributing but losing.
+            log(f"  [skipped] unsupported link: {url[:70]}")
 
     return track_ids, low_confidence
 
