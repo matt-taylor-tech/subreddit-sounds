@@ -54,19 +54,67 @@
       padding: 0.6rem;
       text-align: left;
     }
-    input, button {
+    *, *::before, *::after { box-sizing: border-box; }
+    input, select, textarea, button {
       border-radius: 10px;
       border: 1px solid var(--border);
       background: #0b1220;
       color: var(--text);
       padding: 0.55rem 0.75rem;
+      font: inherit;
+    }
+    /* Text fields fill their container so long placeholders and values stay readable. */
+    .input-block input:not([type="checkbox"]):not([type="radio"]),
+    .input-block select,
+    .input-block textarea {
+      width: 100%;
     }
     button {
       background: color-mix(in srgb, var(--accent), black 20%);
       border: none;
       font-weight: 600;
       cursor: pointer;
+      width: auto;
     }
+    /* Chip (tag) inputs for multi-value fields, progressively enhanced from a text input. */
+    .chips-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0b1220;
+      padding: 0.35rem 0.5rem;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: color-mix(in srgb, var(--accent), black 30%);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 0.15rem 0.6rem;
+      font-size: 0.85rem;
+    }
+    .chip-x {
+      background: none;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      padding: 0;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .chip-entry {
+      flex: 1 1 14ch;
+      min-width: 14ch;
+      width: auto !important;
+      border: none !important;
+      background: transparent !important;
+      padding: 0.2rem 0.15rem !important;
+    }
+    .chip-entry:focus { outline: none; }
     .topnav {
       display: flex;
       justify-content: space-between;
@@ -121,5 +169,77 @@
          style="color:var(--muted);">subreddit-sounds v{{ app_version }}</a>
     </footer>
   </div>
+  <script>
+    // Progressive enhancement: turn any <input class="chipify"> into an add/remove
+    // chip editor. The original input becomes hidden and keeps the comma-separated
+    // value the backend already expects, so this works with JS off (plain box).
+    (function () {
+      function chipify(input) {
+        var listId = input.getAttribute("data-list") || "";
+        var wrap = document.createElement("div");
+        wrap.className = "chips-wrap";
+        var chips = document.createElement("span");
+        chips.className = "chips";
+        var entry = document.createElement("input");
+        entry.type = "text";
+        entry.className = "chip-entry";
+        entry.placeholder = input.getAttribute("data-placeholder") || "type and press Enter";
+        entry.setAttribute("autocomplete", "off");
+        if (listId) entry.setAttribute("list", listId);
+        input.parentNode.insertBefore(wrap, input.nextSibling);
+        wrap.appendChild(chips);
+        wrap.appendChild(entry);
+        input.type = "hidden";
+
+        function values() {
+          return input.value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+        }
+        function commit(vals) {
+          var seen = {}, out = [];
+          vals.forEach(function (v) {
+            var k = v.toLowerCase();
+            if (v && !seen[k]) { seen[k] = true; out.push(v); }
+          });
+          input.value = out.join(", ");
+          render();
+        }
+        function render() {
+          chips.textContent = "";
+          values().forEach(function (v) {
+            var chip = document.createElement("span");
+            chip.className = "chip";
+            chip.appendChild(document.createTextNode(v));
+            var x = document.createElement("button");
+            x.type = "button";
+            x.className = "chip-x";
+            x.setAttribute("aria-label", "Remove " + v);
+            x.textContent = "×";
+            x.addEventListener("click", function () {
+              commit(values().filter(function (u) { return u !== v; }));
+              entry.focus();
+            });
+            chip.appendChild(x);
+            chips.appendChild(chip);
+          });
+        }
+        function addEntry() {
+          if (!entry.value.trim()) return;
+          var vals = values();
+          entry.value.split(",").forEach(function (r) { if (r.trim()) vals.push(r.trim()); });
+          entry.value = "";
+          commit(vals);
+        }
+        entry.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addEntry(); }
+          else if (e.key === "Backspace" && !entry.value) { var v = values(); v.pop(); commit(v); }
+        });
+        entry.addEventListener("blur", addEntry);
+        if (input.form) input.form.addEventListener("submit", addEntry);
+        render();
+      }
+      var inputs = document.querySelectorAll("input.chipify");
+      for (var i = 0; i < inputs.length; i++) chipify(inputs[i]);
+    })();
+  </script>
 </body>
 </html>
