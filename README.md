@@ -24,19 +24,13 @@ Spotify and Reddit API integration logic is scaffolded and ready for the next im
 pip install -r requirements.txt
 ```
 
-1. Copy env template:
-
-```bash
-cp .env.example .env
-```
-
-1. Start app:
+1. Start app (no `.env` needed — a secret key is auto-generated on first run):
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-1. Open `http://localhost:8000/login`.
+1. Open `http://localhost:8000/` and complete the first-run setup wizard.
 
 ## Deploying on Your Debian Server (First Time)
 
@@ -97,37 +91,23 @@ cd ListigeClone
 
 ---
 
-### Step 4 — Create your `.env` file
+### Step 4 — (Optional) `.env` file
 
-Copy the example and set the two required values:
+**You can skip this step.** With no `.env` at all, the app boots on sane
+defaults and auto-generates a persistent session-signing key in the data
+volume on first run. All API credentials (Reddit, Spotify), the admin login,
+and sync options are entered later in the web setup wizard and stored in the
+database.
+
+Create a `.env` only if you want to override a default — for example a custom
+host port, or managing the secret key yourself:
 
 ```bash
 cp .env.example .env
-nano .env
+nano .env   # everything is commented out; uncomment only what you need
 ```
 
-`.env` only needs these — **all** API credentials (Reddit, Spotify), the admin
-login, and sync options are entered later in the web setup wizard and stored in
-the database, not in this file:
-
-```
-ENVIRONMENT=production
-SECRET_KEY=paste-a-generated-value-here
-```
-
-Generate a strong `SECRET_KEY` with:
-
-```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
-In production the app refuses to start if `SECRET_KEY` is left as a placeholder,
-so this step is mandatory.
-
-Save and exit nano with `Ctrl+O`, `Enter`, `Ctrl+X`.
-
-> **Security:** `.env` is in `.gitignore` so it is never committed. Do not
-> share it or paste it anywhere.
+> **Security:** `.env` is in `.gitignore` so it is never committed.
 
 ---
 
@@ -163,7 +143,6 @@ docker run -d \
   --name listige-clone \
   --restart unless-stopped \
   -p 8000:8000 \
-  --env-file ~/ListigeClone/.env \
   -v ~/ListigeClone/data:/app/data \
   listige-clone:0.1.0
 ```
@@ -176,8 +155,9 @@ What each flag does:
 | `--name listige-clone` | Give it a memorable name |
 | `--restart unless-stopped` | Auto-restart after reboots |
 | `-p 8000:8000` | Expose port 8000 on the host |
-| `--env-file` | Load your credentials from `.env` |
-| `-v .../data:/app/data` | Mount host folder so the DB persists |
+| `-v .../data:/app/data` | Mount host folder so the DB (and secret key) persist |
+
+> Only if you created an optional `.env` (Step 4), add `--env-file ~/ListigeClone/.env` to the command.
 
 ---
 
@@ -189,7 +169,9 @@ In your browser go to:
 http://YOUR_SERVER_IP:8000/login
 ```
 
-Log in with the `ADMIN_USERNAME` and `ADMIN_PASSWORD` you set in `.env`.
+The first visit redirects you to `/setup`, where you create the admin login
+and enter your Reddit/Spotify credentials. After that, log in with the admin
+username and password you chose there.
 
 ---
 
@@ -228,12 +210,11 @@ docker run -d \
   --name listige-clone \
   --restart unless-stopped \
   -p 8000:8000 \
-  --env-file ~/ListigeClone/.env \
   -v ~/ListigeClone/data:/app/data \
   listige-clone:latest
 ```
 
-Your database in `~/ListigeClone/data/` is untouched across updates.
+Your database and secret key in `~/ListigeClone/data/` are untouched across updates.
 
 ### Back up the database
 
@@ -252,18 +233,21 @@ The container always listens on `8000` internally; you choose the **host** port.
 
 ## Security
 
-- Set `ENVIRONMENT=production` and a generated `SECRET_KEY` in `.env` (see Step 4).
-  The app will not start in production with a placeholder key.
-- Change the default admin credentials during the first-run setup wizard.
+- The session-signing key is auto-generated and persisted to the data volume on
+  first run — no manual step. Keep the `data/` volume private, since it holds
+  that key and the database.
+- If you'd rather manage the key yourself, set `SECRET_KEY` in `.env`; with
+  `ENVIRONMENT=production` the app refuses to start on a known placeholder value.
+- Set the admin credentials during the first-run setup wizard.
 - For internet-facing access, put it behind Nginx with a free TLS cert via
   Certbot rather than exposing port 8000 directly.
 - All API secrets live in the database volume, never in the repo or image.
 
 ## Debian Deployment Notes
 
-- Keep `.env` outside version control — it already is via `.gitignore`.
+- `.env` is optional; if you create one, it's already outside version control via `.gitignore`.
 - Back up `~/ListigeClone/data/listige.db` regularly.
-- Scheduler timezone is controlled by `SYNC_TIMEZONE=America/New_York` in `.env`.
+- Scheduler timezone is set in the setup wizard (default `America/New_York`).
 
 ## Tests
 
