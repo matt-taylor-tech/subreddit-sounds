@@ -1,8 +1,8 @@
 name: Publish image
 
+# Publish on a GitHub Release only. (Creating a release also creates the tag, so
+# a separate `push: tags` trigger would double-fire and race on :latest.)
 on:
-  push:
-    tags: ["v*"]
   release:
     types: [published]
 
