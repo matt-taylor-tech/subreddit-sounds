@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Playlists</h1>
+<p><a href="/admin/targets/new"><button type="button">+ Add a playlist</button></a></p>
+
+{% for t in targets %}
+<div class="card">
+  <h2>
+    {{ t.name }}
+    {% if not t.enabled %}<span class="muted-small">(disabled)</span>{% endif %}
+  </h2>
+  <p class="muted-small">
+    Playlist
+    <a href="https://open.spotify.com/playlist/{{ t.playlist_id }}" target="_blank" rel="noopener">{{ t.playlist_id }}</a>
+    &middot; cap {{ t.cap }}
+    &middot; daily {{ "%02d:%02d" | format(t.sync_hour, t.sync_minute) }}
+    {% if next_runs.get(t.id) %}&middot; next {{ next_runs[t.id].strftime("%Y-%m-%d %H:%M") }}{% endif %}
+  </p>
+  <p>Subreddits: {{ t.subreddits }}{% if t.genre_filter %} &middot; genre: {{ t.genre_filter }}{% endif %}</p>
+  <div style="display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center;">
+    <a href="/admin/targets/{{ t.id }}/edit"><button type="button">Edit</button></a>
+    <form action="/admin/targets/{{ t.id }}/run" method="post" style="display:inline; gap:0.4rem;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button type="submit" name="dry_run" value="true">Preview</button>
+      <button type="submit" name="dry_run" value="false">Run now</button>
+    </form>
+    <form action="/admin/targets/{{ t.id }}/toggle" method="post" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button type="submit">{{ "Disable" if t.enabled else "Enable" }}</button>
+    </form>
+    <form action="/admin/targets/{{ t.id }}/delete" method="post" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button type="submit" style="color:#fca5a5;">Delete</button>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="card"><p>No playlists yet. <a href="/admin/targets/new">Add one</a> to start syncing.</p></div>
+{% endfor %}
+{% endblock %}

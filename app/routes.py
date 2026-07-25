@@ -1,4 +1,3 @@
-import re
 import secrets
 from datetime import datetime
 from urllib.parse import urlencode
@@ -15,7 +14,7 @@ from app.csrf import csrf_context, verify_csrf
 from app.curated import curated_context
 from app.db import get_db
 from app.models import Run
-from app.services import reddit_service, settings_service, spotify_service
+from app.services import reddit_service, settings_service, spotify_service, targets_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates", context_processors=[csrf_context, curated_context])
@@ -170,36 +169,22 @@ def spotify_callback(
 
 
 def _settings_context() -> dict:
-    """Build the template context dict from current DB settings."""
-    all_tags_str = settings_service.get("bandcamp_tags", settings_service.get("bandcamp_tag", ""))
-    tag_list = [t.strip() for t in all_tags_str.split(",") if t.strip()]
-    enabled_str = settings_service.get("bandcamp_enabled_tags", all_tags_str)
-    enabled_set = {t.strip() for t in enabled_str.split(",") if t.strip()}
+    """Global (non-target) settings for the Settings page. Per-target config
+    lives on the targets pages."""
     return {
         "spotify_client_id": settings_service.get("spotify_client_id", ""),
         "spotify_client_secret": settings_service.get("spotify_client_secret", ""),
-        "spotify_playlist_id": settings_service.get("spotify_playlist_id", ""),
         "spotify_redirect_uri": settings_service.get("spotify_redirect_uri", ""),
         "spotify_connected": spotify_service.is_connected(),
-        "spotify_genre_filter": settings_service.get("spotify_genre_filter", ""),
-        "reddit_subreddit": settings_service.get("reddit_subreddit", "MelodicDeathMetal"),
         "reddit_sort": settings_service.get("reddit_sort", "top"),
         "reddit_timeframe": settings_service.get("reddit_timeframe", "week"),
         "reddit_user_agent": settings_service.get("reddit_user_agent", ""),
         "reddit_client_id": settings_service.get("reddit_client_id", ""),
         "reddit_client_secret": settings_service.get("reddit_client_secret", ""),
-        "sync_cap": settings_service.get("sync_cap", "25"),
         "min_track_duration_sec": settings_service.get("min_track_duration_sec", "120"),
         "sync_timezone": settings_service.get("sync_timezone", "America/New_York"),
-        "sync_hour": settings_service.get("sync_hour", "7"),
-        "sync_minute": settings_service.get("sync_minute", "0"),
-        "bandcamp_enabled": settings_service.get("bandcamp_enabled", "false"),
-        "bandcamp_tags": all_tags_str,
-        "bandcamp_tag_list": tag_list,
-        "bandcamp_enabled_set": enabled_set,
+        "sync_enabled": settings_service.get("sync_enabled", "true"),
         "notify_webhook_url": settings_service.get("notify_webhook_url", ""),
-        "blocklist_enabled": settings_service.get("blocklist_enabled", "false"),
-        "blocklist_ids": settings_service.get("blocklist_ids", ""),
     }
 
 
@@ -219,87 +204,29 @@ def settings_save(
     _csrf: None = Depends(verify_csrf),
     spotify_client_id: str = Form(...),
     spotify_client_secret: str = Form(""),
-    spotify_playlist_id: str = Form(...),
     spotify_redirect_uri: str = Form(...),
-    spotify_genre_filter: str = Form(""),
-    reddit_subreddit: str = Form(...),
     reddit_sort: str = Form("top"),
     reddit_timeframe: str = Form("week"),
     reddit_user_agent: str = Form(""),
     reddit_client_id: str = Form(""),
     reddit_client_secret: str = Form(""),
-    sync_cap: int = Form(25),
     min_track_duration_sec: int = Form(120),
     sync_timezone: str = Form("America/New_York"),
-    sync_hour: int = Form(7),
-    sync_minute: int = Form(0),
-    bandcamp_enabled: str = Form("false"),
-    bc_tag_list: str = Form(""),
-    bc_enabled: list[str] = Form(default=[]),
-    new_bc_tag: str = Form(""),
+    sync_enabled: str = Form("false"),
     notify_webhook_url: str = Form(""),
-    blocklist_enabled: str = Form("false"),
-    blocklist_ids: str = Form(""),
 ):
     require_auth(request)
 
-    # Verify subreddits, but only the newly-added ones — Reddit rate-limits the
-    # keyless RSS feed, so we don't re-check subreddits that were already saved.
-    # A rate-limited/ambiguous result is non-definitive and never blocks the save
-    # (see reddit_service.check_subreddit).
-    new_subs = reddit_service.parse_subreddits(reddit_subreddit)
-    if not new_subs:
-        ctx = _settings_context()
-        ctx["reddit_subreddit"] = reddit_subreddit
-        return templates.TemplateResponse(
-            request,
-            "settings.html",
-            {"settings": ctx, "saved": False, "error": "Enter at least one subreddit."},
-            status_code=400,
-        )
-    current_subs = {s.lower() for s in reddit_service.parse_subreddits(settings_service.get("reddit_subreddit", ""))}
-    added_subs = [s for s in new_subs if s.lower() not in current_subs]
-    if added_subs:
-        user_agent = reddit_user_agent.strip() or settings_service.get("reddit_user_agent")
-        problem = reddit_service.first_definitive_problem(added_subs, user_agent)
-        if problem:
-            ctx = _settings_context()
-            ctx["reddit_subreddit"] = reddit_subreddit  # keep what the user typed
-            return templates.TemplateResponse(
-                request,
-                "settings.html",
-                {"settings": ctx, "saved": False, "error": problem.message},
-                status_code=400,
-            )
-
-    # Build the full tag list: existing + any newly added
-    existing = [t.strip() for t in bc_tag_list.split(",") if t.strip()]
-    if new_bc_tag.strip():
-        existing.append(new_bc_tag.strip())
-    seen: set[str] = set()
-    all_tags = [t for t in existing if not (t in seen or seen.add(t))]  # type: ignore[func-returns-value]
-
     updates = {
         "spotify_client_id": spotify_client_id.strip(),
-        "spotify_playlist_id": spotify_playlist_id.strip(),
         "spotify_redirect_uri": spotify_redirect_uri.strip(),
-        "spotify_genre_filter": spotify_genre_filter.strip(),
-        "reddit_subreddit": ", ".join(new_subs),
         "reddit_sort": reddit_sort,
         "reddit_timeframe": reddit_timeframe,
         "reddit_client_id": reddit_client_id.strip(),
         "notify_webhook_url": notify_webhook_url.strip(),
-        "sync_cap": str(sync_cap),
         "min_track_duration_sec": str(max(0, min_track_duration_sec)),
         "sync_timezone": sync_timezone.strip(),
-        "sync_hour": str(sync_hour),
-        "sync_minute": str(sync_minute),
-        "blocklist_enabled": "true" if blocklist_enabled == "true" else "false",
-        # Accept comma- or newline/space-separated ids from the textarea; store canonical.
-        "blocklist_ids": ",".join(t for t in re.split(r"[\s,]+", blocklist_ids) if t),
-        "bandcamp_enabled": "true" if bandcamp_enabled == "true" else "false",
-        "bandcamp_tags": ",".join(all_tags),
-        "bandcamp_enabled_tags": ",".join(bc_enabled),
+        "sync_enabled": "true" if sync_enabled == "true" else "false",
     }
     # Only overwrite the secret if a new one was provided
     if spotify_client_secret.strip():
@@ -326,3 +253,253 @@ def settings_save(
         "settings.html",
         {"settings": _settings_context(), "saved": True},
     )
+
+
+# ---------------------------------------------------------------------------
+# Targets (playlists)
+# ---------------------------------------------------------------------------
+
+_NEW_FORM = {
+    "name": "",
+    "playlist_id": "",
+    "subreddits": "",
+    "genre_filter": "",
+    "cap": 25,
+    "bandcamp_enabled": False,
+    "bandcamp_tags": "",
+    "sync_hour": 7,
+    "sync_minute": 0,
+    "blocklist_enabled": False,
+}
+
+
+def _form_from_target(t) -> dict:
+    return {
+        "name": t.name,
+        "playlist_id": t.playlist_id,
+        "subreddits": t.subreddits,
+        "genre_filter": t.genre_filter or "",
+        "cap": t.cap,
+        "bandcamp_enabled": t.bandcamp_enabled,
+        "bandcamp_tags": t.bandcamp_tags,
+        "sync_hour": t.sync_hour,
+        "sync_minute": t.sync_minute,
+        "blocklist_enabled": t.blocklist_enabled,
+    }
+
+
+def _blocked_tracks(target) -> list[tuple[str, str]]:
+    """Blocked track ids resolved to 'Artist — Title' where possible."""
+    ids = [i.strip() for i in target.blocklist_ids.split(",") if i.strip()]
+    if not ids:
+        return []
+    info: dict = {}
+    if spotify_service.is_connected():
+        try:
+            info = spotify_service.get_tracks_info(ids)
+        except Exception:
+            info = {}
+    return [(i, info.get(i, i)) for i in ids]
+
+
+def _validate_target_form(db, form: dict, existing=None) -> tuple[dict | None, str | None]:
+    """Validate submitted target fields; return (fields_to_save, error)."""
+    subs = reddit_service.parse_subreddits(form["subreddits"])
+    if not form["playlist_id"].strip():
+        return None, "Playlist ID is required."
+    if not subs:
+        return None, "Enter at least one subreddit."
+    # Verify only newly-added subreddits (spare Reddit's rate limit).
+    current = {s.lower() for s in reddit_service.parse_subreddits(existing.subreddits)} if existing else set()
+    added = [s for s in subs if s.lower() not in current]
+    if added:
+        problem = reddit_service.first_definitive_problem(added, settings_service.get("reddit_user_agent"))
+        if problem:
+            return None, problem.message
+    tags = ",".join(t.strip() for t in form["bandcamp_tags"].split(",") if t.strip())
+    fields = {
+        "name": form["name"].strip() or "Playlist",
+        "playlist_id": form["playlist_id"].strip(),
+        "subreddits": ", ".join(subs),
+        "genre_filter": form["genre_filter"].strip() or None,
+        "cap": form["cap"],
+        "bandcamp_enabled": form["bandcamp_enabled"] == "true",
+        "bandcamp_tags": tags,
+        "bandcamp_enabled_tags": tags,
+        "sync_hour": form["sync_hour"],
+        "sync_minute": form["sync_minute"],
+        "blocklist_enabled": form["blocklist_enabled"] == "true",
+    }
+    return fields, None
+
+
+def _reschedule(request: Request) -> None:
+    mgr = getattr(request.app.state, "scheduler_manager", None)
+    if mgr:
+        mgr.reschedule()
+
+
+@router.get("/admin/targets")
+def targets_list(request: Request, db: Session = Depends(get_db)):
+    require_auth(request)
+    targets = targets_service.list_targets(db)
+    mgr = getattr(request.app.state, "scheduler_manager", None)
+    next_runs = mgr.next_runs() if mgr else {}
+    return templates.TemplateResponse(request, "targets.html", {"targets": targets, "next_runs": next_runs})
+
+
+@router.get("/admin/targets/new")
+def target_new(request: Request):
+    require_auth(request)
+    return templates.TemplateResponse(
+        request, "target_form.html", {"form": dict(_NEW_FORM), "action": "/admin/targets", "error": None}
+    )
+
+
+@router.get("/admin/targets/{target_id}/edit")
+def target_edit(request: Request, target_id: int, db: Session = Depends(get_db)):
+    require_auth(request)
+    target = targets_service.get_target(db, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Target not found")
+    return templates.TemplateResponse(
+        request,
+        "target_form.html",
+        {
+            "form": _form_from_target(target),
+            "action": f"/admin/targets/{target_id}",
+            "target_id": target_id,
+            "blocked_tracks": _blocked_tracks(target),
+            "error": None,
+        },
+    )
+
+
+def _form_params(
+    name: str = Form(""),
+    playlist_id: str = Form(""),
+    subreddits: str = Form(""),
+    genre_filter: str = Form(""),
+    cap: int = Form(25),
+    bandcamp_enabled: str = Form("false"),
+    bandcamp_tags: str = Form(""),
+    sync_hour: int = Form(7),
+    sync_minute: int = Form(0),
+    blocklist_enabled: str = Form("false"),
+) -> dict:
+    return {
+        "name": name,
+        "playlist_id": playlist_id,
+        "subreddits": subreddits,
+        "genre_filter": genre_filter,
+        "cap": cap,
+        "bandcamp_enabled": bandcamp_enabled,
+        "bandcamp_tags": bandcamp_tags,
+        "sync_hour": sync_hour,
+        "sync_minute": sync_minute,
+        "blocklist_enabled": blocklist_enabled,
+    }
+
+
+@router.post("/admin/targets")
+def target_create(
+    request: Request,
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(verify_csrf),
+    form: dict = Depends(_form_params),
+):
+    require_auth(request)
+    fields, error = _validate_target_form(db, form)
+    if error:
+        return templates.TemplateResponse(
+            request,
+            "target_form.html",
+            {"form": form, "action": "/admin/targets", "error": error},
+            status_code=400,
+        )
+    targets_service.create_target(db, **fields)
+    _reschedule(request)
+    return RedirectResponse(url="/admin/targets", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/admin/targets/{target_id}")
+def target_update(
+    request: Request,
+    target_id: int,
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(verify_csrf),
+    form: dict = Depends(_form_params),
+):
+    require_auth(request)
+    target = targets_service.get_target(db, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Target not found")
+    fields, error = _validate_target_form(db, form, existing=target)
+    if error:
+        return templates.TemplateResponse(
+            request,
+            "target_form.html",
+            {
+                "form": form,
+                "action": f"/admin/targets/{target_id}",
+                "target_id": target_id,
+                "blocked_tracks": _blocked_tracks(target),
+                "error": error,
+            },
+            status_code=400,
+        )
+    targets_service.update_target(db, target_id, **fields)
+    _reschedule(request)
+    return RedirectResponse(url="/admin/targets", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/admin/targets/{target_id}/delete")
+def target_delete(request: Request, target_id: int, db: Session = Depends(get_db), _csrf: None = Depends(verify_csrf)):
+    require_auth(request)
+    targets_service.delete_target(db, target_id)
+    _reschedule(request)
+    return RedirectResponse(url="/admin/targets", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/admin/targets/{target_id}/toggle")
+def target_toggle(request: Request, target_id: int, db: Session = Depends(get_db), _csrf: None = Depends(verify_csrf)):
+    require_auth(request)
+    target = targets_service.get_target(db, target_id)
+    if target is not None:
+        targets_service.update_target(db, target_id, enabled=not target.enabled)
+        _reschedule(request)
+    return RedirectResponse(url="/admin/targets", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/admin/targets/{target_id}/run")
+def target_run(
+    request: Request,
+    target_id: int,
+    dry_run: bool = Form(False),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(verify_csrf),
+):
+    require_auth(request)
+    target = targets_service.get_target(db, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Target not found")
+    run_id = request.app.state.sync_service.run_once(db=db, target=target, trigger_type="manual", dry_run=dry_run)
+    if run_id is not None:
+        return RedirectResponse(url=f"/admin/runs?run_id={run_id}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin/runs", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/admin/targets/{target_id}/blocklist/remove")
+def target_blocklist_remove(
+    request: Request,
+    target_id: int,
+    track_id: str = Form(...),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(verify_csrf),
+):
+    require_auth(request)
+    target = targets_service.get_target(db, target_id)
+    if target is not None:
+        remaining = [i.strip() for i in target.blocklist_ids.split(",") if i.strip() and i.strip() != track_id]
+        targets_service.update_target(db, target_id, blocklist_ids=",".join(remaining))
+    return RedirectResponse(url=f"/admin/targets/{target_id}/edit", status_code=status.HTTP_303_SEE_OTHER)

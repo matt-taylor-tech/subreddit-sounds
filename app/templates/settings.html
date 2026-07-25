@@ -10,20 +10,13 @@
 <p class="error-text">{{ error }}</p>
 {% endif %}
 
+<p class="muted-small">These are global settings shared by every playlist. Per-playlist sources, cap, genre, schedule and block-list live under <a href="/admin/targets">Playlists</a>.</p>
+
 <form method="post" action="/admin/settings">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
 
   <div class="card">
     <h2>Reddit</h2>
-    <div class="input-block">
-      <label for="reddit_subreddit">Subreddit(s) (without r/)</label><br />
-      <input id="reddit_subreddit" name="reddit_subreddit" value="{{ settings.reddit_subreddit }}"
-             list="subreddit_options" placeholder="pick a suggestion or type any subreddit" required />
-      <datalist id="subreddit_options">
-        {% for sub in subreddit_suggestions %}<option value="{{ sub }}"></option>{% endfor %}
-      </datalist>
-      <small class="muted-small">Separate multiple subreddits with commas (e.g. <code>Metal, postrock, jazz</code>); all feed the one playlist. Each is fetched separately and a bad one is skipped.</small>
-    </div>
     <div class="row">
       <div class="input-block flex-1">
         <label for="reddit_sort">Sort</label><br />
@@ -47,7 +40,7 @@
     <div class="input-block">
       <label for="reddit_user_agent">User-Agent</label><br />
       <input id="reddit_user_agent" name="reddit_user_agent" value="{{ settings.reddit_user_agent }}" />
-      <small class="muted-small">Reddit requires the format <code>&lt;platform&gt;:&lt;app-id&gt;:&lt;version&gt; (by /u/&lt;username&gt;)</code>, e.g. <code>web:subreddit-sounds:0.1 (by /u/suiifelse)</code>.</small>
+      <small class="muted-small">Reddit format: <code>&lt;platform&gt;:&lt;app-id&gt;:&lt;version&gt; (by /u/&lt;username&gt;)</code>.</small>
     </div>
     <div class="row">
       <div class="input-block flex-1">
@@ -59,16 +52,12 @@
         <input id="reddit_client_secret" name="reddit_client_secret" value="{{ settings.reddit_client_secret }}" />
       </div>
     </div>
-    <small class="muted-small">By default, posts are read from Reddit's public RSS feed — no credentials needed. If you have approved Reddit OAuth credentials, enter them here to use the authenticated API instead. Note: since Reddit's Nov 2025 <a href="https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy" target="_blank" rel="noopener">Responsible Builder Policy</a>, new credentials must be requested via Reddit's developer support process — self-service app creation is no longer available.</small>
+    <small class="muted-small">By default, posts are read from Reddit's public RSS feed. Since Reddit's Nov 2025 Responsible Builder Policy, new OAuth credentials require approval via Reddit's developer support process.</small>
   </div>
 
   <div class="card">
     <h2>Sync</h2>
     <div class="row">
-      <div class="input-block flex-1">
-        <label for="sync_cap">Max songs in playlist</label><br />
-        <input id="sync_cap" name="sync_cap" type="number" min="1" max="500" value="{{ settings.sync_cap }}" required />
-      </div>
       <div class="input-block flex-1">
         <label for="min_track_duration_sec">Minimum track length (seconds)</label><br />
         <input id="min_track_duration_sec" name="min_track_duration_sec" type="number" min="0" max="600" value="{{ settings.min_track_duration_sec }}" required />
@@ -77,34 +66,15 @@
       <div class="input-block flex-1">
         <label for="sync_timezone">Timezone</label><br />
         <input id="sync_timezone" name="sync_timezone" value="{{ settings.sync_timezone }}" required />
+        <small class="muted-small">Applies to every playlist's scheduled run time.</small>
       </div>
     </div>
-    <div class="row">
-      <div class="input-block flex-1">
-        <label for="sync_hour">Run hour (0–23)</label><br />
-        <input id="sync_hour" name="sync_hour" type="number" min="0" max="23" value="{{ settings.sync_hour }}" required />
-      </div>
-      <div class="input-block flex-1">
-        <label for="sync_minute">Run minute (0–59)</label><br />
-        <input id="sync_minute" name="sync_minute" type="number" min="0" max="59" value="{{ settings.sync_minute }}" required />
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Manual deletions</h2>
     <div class="input-block">
       <label>
-        <input type="checkbox" name="blocklist_enabled" value="true" {{ 'checked' if settings.blocklist_enabled == 'true' }} />
-        Make manual deletions stick
+        <input type="checkbox" name="sync_enabled" value="true" {{ 'checked' if settings.sync_enabled == 'true' }} />
+        Enable scheduled syncing
       </label>
-      <small class="muted-small">When on, a track you remove from the playlist by hand is remembered and won't be re-added on the next sync, even if it's still trending. Tracks the app itself trimmed at the size cap are <em>not</em> blocked — they can still resurface if they trend again. Off by default; behavior is unchanged when off.</small>
-    </div>
-    <div class="input-block">
-      <label for="blocklist_ids">Blocked track IDs</label><br />
-      <textarea id="blocklist_ids" name="blocklist_ids" rows="4" style="width:100%; font-family:monospace; font-size:0.82em;"
-                placeholder="Spotify track IDs — auto-filled as you delete tracks; edit to unblock">{{ settings.blocklist_ids }}</textarea>
-      <small class="muted-small">Auto-populated from your manual deletions. Remove an ID here to allow that track back.</small>
+      <small class="muted-small">Off pauses all scheduled runs (manual runs still work).</small>
     </div>
   </div>
 
@@ -121,60 +91,16 @@
         <small class="muted-small">Leave blank to keep the existing secret.</small>
       </div>
     </div>
-    <div class="row">
-      <div class="input-block flex-1">
-        <label for="spotify_playlist_id">Playlist ID</label><br />
-        <input id="spotify_playlist_id" name="spotify_playlist_id" value="{{ settings.spotify_playlist_id }}" required />
-      </div>
-      <div class="input-block flex-1">
-        <label for="spotify_redirect_uri">Redirect URI</label><br />
-        <input id="spotify_redirect_uri" name="spotify_redirect_uri" value="{{ settings.spotify_redirect_uri }}" required />
-        <small class="muted-small">Must match exactly what's set in the Spotify app dashboard. After changing, re-authorize below.</small>
-      </div>
+    <div class="input-block">
+      <label for="spotify_redirect_uri">Redirect URI</label><br />
+      <input id="spotify_redirect_uri" name="spotify_redirect_uri" value="{{ settings.spotify_redirect_uri }}" required />
+      <small class="muted-small">Must match exactly what's set in the Spotify app dashboard. After changing, re-authorize below.</small>
     </div>
     {% if settings.spotify_connected %}
     <p style="color: var(--accent);">&#10003; Connected — <a href="/spotify/authorize">Re-authorize</a></p>
     {% else %}
     <p style="color: #fca5a5;">&#10007; Not connected — save settings first, then <a href="/spotify/authorize">authorize here</a>.</p>
     {% endif %}
-    <div class="input-block">
-      <label for="spotify_genre_filter">Genre filter for YouTube→Spotify freetext matches</label><br />
-      <input id="spotify_genre_filter" name="spotify_genre_filter" value="{{ settings.spotify_genre_filter }}" list="genre_options" placeholder="e.g. metal — leave blank to disable" />
-      <datalist id="genre_options">
-        {% for genre in genre_suggestions %}<option value="{{ genre }}"></option>{% endfor %}
-      </datalist>
-      <small class="muted-small">Used in freetext searches and to reject structured matches when Spotify artist genres are known and clearly outside this filter. Ignored for direct Spotify links.</small>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Bandcamp</h2>
-    <div class="input-block">
-      <label>
-        <input type="checkbox" name="bandcamp_enabled" value="true" {{ 'checked' if settings.bandcamp_enabled == 'true' }} />
-        Enable Bandcamp as a source
-      </label>
-    </div>
-
-    <p>Genre tags — check to include in each sync run.</p>
-
-    {# Hidden field so the backend knows the full configured tag list #}
-    <input type="hidden" name="bc_tag_list" value="{{ settings.bandcamp_tags }}" />
-
-    {% for tag in settings.bandcamp_tag_list %}
-    <div class="input-block" style="display:flex; align-items:center; gap:0.6rem;">
-      <input type="checkbox" name="bc_enabled" value="{{ tag }}"
-             {{ 'checked' if tag in settings.bandcamp_enabled_set }} />
-      <span>{{ tag }}</span>
-    </div>
-    {% else %}
-    <p class="muted-small">No tags configured yet.</p>
-    {% endfor %}
-
-    <div class="input-block" style="display:flex; gap:0.5rem; margin-top:0.5rem;">
-      <input name="new_bc_tag" list="genre_options" placeholder="add-a-tag (e.g. melodic-black-metal)" style="flex:1" />
-      <small class="muted-small" style="align-self:center;">Saves with the form below</small>
-    </div>
   </div>
 
   <div class="card">
@@ -183,11 +109,10 @@
       <label for="notify_webhook_url">Failure webhook URL <span class="muted-small">(optional)</span></label><br />
       <input id="notify_webhook_url" name="notify_webhook_url" value="{{ settings.notify_webhook_url }}"
              placeholder="https://… — leave blank to disable" style="width:100%;" />
-      <small class="muted-small">If set, a failed sync run POSTs a JSON alert here (works with Discord, Slack, ntfy, Apprise). Leave blank for no notifications.</small>
+      <small class="muted-small">If set, a failed sync run POSTs a JSON alert here (works with Discord, Slack, ntfy, Apprise).</small>
     </div>
   </div>
 
   <button type="submit">Save Settings</button>
-
 </form>
 {% endblock %}

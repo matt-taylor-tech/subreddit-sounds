@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 
 from app.auth import hash_password
 from app.csrf import csrf_context, verify_csrf
 from app.curated import curated_context
-from app.services import reddit_service, settings_service
+from app.db import get_db
+from app.services import reddit_service, settings_service, targets_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates", context_processors=[csrf_context, curated_context])
@@ -24,6 +26,7 @@ def setup_page(request: Request):
 def setup_submit(
     request: Request,
     _csrf: None = Depends(verify_csrf),
+    db: Session = Depends(get_db),
     admin_username: str = Form(...),
     admin_password: str = Form(...),
     admin_password_confirm: str = Form(...),
@@ -74,11 +77,11 @@ def setup_submit(
             status_code=400,
         )
 
+    # Global settings (credentials + shared read options).
     settings_service.put_many(
         {
             "admin_username": admin_username,
             "admin_password_hash": hash_password(admin_password),
-            "reddit_subreddit": ", ".join(subreddits),
             "reddit_sort": reddit_sort,
             "reddit_timeframe": reddit_timeframe,
             "reddit_user_agent": user_agent,
@@ -86,20 +89,29 @@ def setup_submit(
             "reddit_client_secret": reddit_client_secret.strip(),
             "spotify_client_id": spotify_client_id,
             "spotify_client_secret": spotify_client_secret,
-            "spotify_playlist_id": spotify_playlist_id,
             "spotify_redirect_uri": spotify_redirect_uri,
-            "sync_cap": str(sync_cap),
             "sync_timezone": sync_timezone,
-            "sync_hour": str(sync_hour),
-            "sync_minute": str(sync_minute),
             "sync_enabled": "true",
-            "spotify_genre_filter": spotify_genre_filter.strip(),
-            "bandcamp_enabled": "true" if bandcamp_enabled == "true" else "false",
-            "bandcamp_tag": bandcamp_tag.strip(),
         }
     )
 
-    # Start the daily scheduler now that credentials are available.
+    # The first playlist becomes the first target.
+    bandcamp_tag = bandcamp_tag.strip()
+    targets_service.create_target(
+        db,
+        name="Default",
+        playlist_id=spotify_playlist_id,
+        subreddits=", ".join(subreddits),
+        genre_filter=spotify_genre_filter.strip() or None,
+        cap=sync_cap,
+        bandcamp_enabled=bandcamp_enabled == "true",
+        bandcamp_tags=bandcamp_tag,
+        bandcamp_enabled_tags=bandcamp_tag,
+        sync_hour=sync_hour,
+        sync_minute=sync_minute,
+    )
+
+    # Start the scheduler now that credentials are available.
     scheduler_manager = getattr(request.app.state, "scheduler_manager", None)
     if scheduler_manager:
         scheduler_manager.reschedule()
