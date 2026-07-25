@@ -23,6 +23,7 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
+from typing import NamedTuple
 
 import httpx
 
@@ -52,6 +53,94 @@ def _noop_log(_msg: str) -> None:
 def has_credentials() -> bool:
     """True when both a Reddit client ID and secret are configured."""
     return bool(settings_service.get("reddit_client_id") and settings_service.get("reddit_client_secret"))
+
+
+class SubredditCheck(NamedTuple):
+    """Result of a best-effort subreddit existence/readability check.
+
+    ``ok`` is True only when readability was positively confirmed (HTTP 200).
+    ``status`` is one of ``ok`` / ``not_found`` / ``forbidden`` / ``rate_limited``
+    / ``error``. ``definitive`` marks results that are unambiguous evidence the
+    subreddit is unusable (a 404, or a 403 when we hold OAuth credentials); the
+    ambiguous ones (an anonymous-RSS 403, which on a datacenter IP usually means
+    *our whole IP* is blocked rather than the sub being private, plus 429s and
+    network errors) are left non-definitive so callers don't reject valid config.
+    """
+
+    ok: bool
+    status: str
+    message: str
+    definitive: bool
+
+
+def normalize_subreddit(subreddit: str) -> str:
+    """Strip whitespace and any leading ``/r/`` or ``r/`` prefix from user input."""
+    name = subreddit.strip()
+    name = re.sub(r"^/?r/", "", name, flags=re.IGNORECASE)
+    return name.strip().strip("/")
+
+
+def check_subreddit(subreddit: str, user_agent: str) -> SubredditCheck:
+    """Best-effort check that a single subreddit exists and is readable.
+
+    Issues one lightweight request (OAuth ``about.json`` when credentials exist,
+    else the public ``new.rss`` feed). Confirms readability on HTTP 200 and
+    identifies a definitely-missing sub on 404. A 403/429/network error is
+    reported but flagged non-definitive: from a datacenter IP Reddit routinely
+    403s or 429s *everything*, so those cannot prove the subreddit itself is bad.
+    """
+    name = normalize_subreddit(subreddit)
+    if not name:
+        return SubredditCheck(False, "error", "No subreddit was provided.", definitive=True)
+
+    with_creds = has_credentials()
+    try:
+        if with_creds:
+            headers = {"User-Agent": user_agent, "Authorization": f"Bearer {_get_access_token(user_agent)}"}
+            url = f"{_OAUTH_API}/r/{name}/about.json"
+        else:
+            headers = {"User-Agent": user_agent}
+            url = f"{_PUBLIC_API}/r/{name}/new.rss"
+        with httpx.Client(follow_redirects=True, timeout=15) as client:
+            r = client.get(url, headers=headers, params={"limit": 1})
+    except httpx.HTTPError as exc:
+        return SubredditCheck(False, "error", f"Couldn't reach Reddit to verify r/{name}: {exc}", definitive=False)
+
+    if r.status_code == 200:
+        # A typo'd sub can 302 to a search page that still returns 200; if the
+        # final URL no longer points at /r/<name>, treat it as not found.
+        final_url = str(getattr(r, "url", "") or "")
+        if final_url and f"/r/{name.lower()}" not in final_url.lower():
+            return SubredditCheck(
+                False, "not_found", f"r/{name} doesn't exist (Reddit redirected to a search page).", definitive=True
+            )
+        return SubredditCheck(True, "ok", f"r/{name} exists and is readable.", definitive=True)
+    if r.status_code == 404:
+        return SubredditCheck(
+            False, "not_found", f"r/{name} doesn't exist (Reddit returned 404). Check the spelling.", definitive=True
+        )
+    if r.status_code == 403:
+        if with_creds:
+            return SubredditCheck(
+                False, "forbidden", f"r/{name} is private or quarantined (Reddit returned 403).", definitive=True
+            )
+        return SubredditCheck(
+            False,
+            "forbidden",
+            f"Couldn't verify r/{name}: Reddit returned 403 on the public feed. This usually means this "
+            f"server's IP is blocked by Reddit rather than the subreddit being private.",
+            definitive=False,
+        )
+    if r.status_code == 429:
+        return SubredditCheck(
+            False,
+            "rate_limited",
+            f"Couldn't verify r/{name}: Reddit rate-limited the check (429). Try again shortly.",
+            definitive=False,
+        )
+    return SubredditCheck(
+        False, "error", f"Couldn't verify r/{name}: Reddit returned HTTP {r.status_code}.", definitive=False
+    )
 
 
 def fetch_posts(
