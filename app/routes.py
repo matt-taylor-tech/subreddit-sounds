@@ -11,12 +11,13 @@ from sqlalchemy.orm import Session
 from app import login_throttle
 from app.auth import is_authenticated, verify_password
 from app.csrf import csrf_context, verify_csrf
+from app.curated import curated_context
 from app.db import get_db
 from app.models import Run
 from app.services import settings_service, spotify_service
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates", context_processors=[csrf_context])
+templates = Jinja2Templates(directory="app/templates", context_processors=[csrf_context, curated_context])
 
 
 def require_auth(request: Request) -> None:

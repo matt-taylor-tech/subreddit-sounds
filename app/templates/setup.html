@@ -29,7 +29,11 @@
     <p>Posts are read from Reddit's public RSS feed — no API key required. OAuth credentials are optional (see below).</p>
     <div class="input-block">
       <label for="reddit_subreddit">Subreddit (without r/)</label><br />
-      <input id="reddit_subreddit" name="reddit_subreddit" value="MelodicDeathMetal" required />
+      <input id="reddit_subreddit" name="reddit_subreddit" list="subreddit_options"
+             placeholder="pick a suggestion or type any subreddit" required />
+      <datalist id="subreddit_options">
+        {% for sub in subreddit_suggestions %}<option value="{{ sub }}"></option>{% endfor %}
+      </datalist>
     </div>
     <div class="row">
       <div class="input-block flex-1">
@@ -91,7 +95,10 @@
     <h2>Sync Settings</h2>
     <div class="input-block">
       <label for="spotify_genre_filter">Genre filter for YouTube→Spotify matches (optional)</label><br />
-      <input id="spotify_genre_filter" name="spotify_genre_filter" value="metal" placeholder="e.g. metal, rock, jazz — leave blank to disable" />
+      <input id="spotify_genre_filter" name="spotify_genre_filter" list="genre_options" placeholder="e.g. metal, rock, jazz — leave blank to disable" />
+      <datalist id="genre_options">
+        {% for genre in genre_suggestions %}<option value="{{ genre }}"></option>{% endfor %}
+      </datalist>
       <small class="muted-small">Appended as <code>genre:&lt;value&gt;</code> to Spotify freetext searches, and used to reject structured matches when Spotify artist genres are known and outside this filter. Ignored for direct Spotify links.</small>
     </div>
     <div class="row">
@@ -125,7 +132,7 @@
     </div>
     <div class="input-block">
       <label for="bandcamp_tag">Bandcamp tag</label><br />
-      <input id="bandcamp_tag" name="bandcamp_tag" value="melodic-death-metal" />
+      <input id="bandcamp_tag" name="bandcamp_tag" list="genre_options" placeholder="e.g. metal, post-rock — the tag slug" />
       <small class="muted-small">The tag slug from <code>bandcamp.com/tag/&lt;tag&gt;</code>.</small>
     </div>
 
