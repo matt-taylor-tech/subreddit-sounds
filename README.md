@@ -159,7 +159,8 @@ Two things about Docker catch people out here:
 
 ```bash
 docker pull ghcr.io/matt-taylor-tech/subreddit-sounds:latest
-docker stop subreddit-sounds && docker rm subreddit-sounds
+# rm -f handles a running, stopped, or already-removed container in one step.
+docker rm -f subreddit-sounds
 docker run -d \
   --name subreddit-sounds \
   --restart unless-stopped \
@@ -167,6 +168,15 @@ docker run -d \
   -v subreddit-sounds-data:/app/data \
   ghcr.io/matt-taylor-tech/subreddit-sounds:latest
 ```
+
+Removing the container does not touch the named volume, so the database and
+secret key carry over to the replacement.
+
+If `docker run` reports **"container name is already in use"**, one still exists
+under that name; `docker rm -f subreddit-sounds` clears it. If it was already the
+new image and you only need it running again, `docker start subreddit-sounds` is
+enough. Check which image a container is on with
+`docker inspect --format '{{.Config.Image}}' subreddit-sounds`.
 
 New images are published automatically for each tagged release. To pin a version
 instead of tracking `latest`, use a tag like `:0.1.1`.
