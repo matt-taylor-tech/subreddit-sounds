@@ -12,6 +12,9 @@ _TITLE_OVERLAP_WEIGHT = 3
 _ARTIST_OVERLAP_WEIGHT = 4
 _POPULARITY_WEIGHT = 0.01
 _MAX_SEARCH_CANDIDATES = 10
+# Fraction of the query's words a candidate title must account for on the
+# low-confidence path, where no trusted artist narrows the field.
+_MIN_TITLE_COVERAGE = 0.6
 
 
 def is_connected() -> bool:
@@ -287,6 +290,22 @@ def _phrase_in(term: str, genre: str) -> bool:
     return any(genre_words[i : i + n] == term_words for i in range(len(genre_words) - n + 1))
 
 
+def _title_close_enough(query_tokens: set[str], name_tokens: set[str], strict: bool) -> bool:
+    """Does a candidate's title match the query well enough to be considered?
+
+    One shared token is enough when a trusted artist already gates the match. On
+    the hinted path nothing else constrains the candidate, so most of the query
+    has to be accounted for — otherwise a query like "Time Goes By" admits every
+    track with "Time" in the name and popularity picks the winner.
+    """
+    overlap = len(query_tokens & name_tokens)
+    if overlap == 0:
+        return False
+    if not strict:
+        return True
+    return overlap / len(query_tokens) >= _MIN_TITLE_COVERAGE
+
+
 def _select_best_track(
     items: list[dict],
     query: str,
@@ -310,7 +329,7 @@ def _select_best_track(
             continue
         name_tokens = _tokenize(track.get("name", ""))
         title_overlap = len(query_tokens & name_tokens)
-        if query_tokens and title_overlap == 0:
+        if query_tokens and not _title_close_enough(query_tokens, name_tokens, strict=artist_is_hint):
             continue
 
         artists = track.get("artists", [])
@@ -321,16 +340,29 @@ def _select_best_track(
         if artist_tokens and artist_overlap == 0 and not artist_is_hint:
             continue
 
+        genre_confirmed = False
         if wanted_genres and artists and isinstance(artists[0], dict):
             primary_artist_id = artists[0].get("id")
             known_genres = genres_by_id.get(primary_artist_id, []) if primary_artist_id else []
             if known_genres:
                 if not _genre_matches(known_genres, wanted_genres, include_substyles):
                     continue
-            elif not include_unclassified:
+                genre_confirmed = True
+            elif not include_unclassified or artist_is_hint:
                 # Spotify leaves many artists (especially small ones) unclassified.
-                # Whether that counts as a match is the target's explicit setting.
+                # Whether that counts as a match is the target's explicit setting —
+                # except on the hinted path, where a title match is the only other
+                # evidence, so "no genre data" must not become the loophole that
+                # lets an off-genre track in.
                 continue
+
+        # The hinted path has no trusted artist, so a bare title match would be
+        # decided by popularity alone — which reliably picks the mainstream track
+        # that happens to share a song name over the obscure one actually posted.
+        # Require real evidence: the hint agreeing with the candidate's artist, or
+        # Spotify positively confirming the genre.
+        if artist_tokens and artist_is_hint and artist_overlap == 0 and not genre_confirmed:
+            continue
 
         score = title_overlap * _TITLE_OVERLAP_WEIGHT + artist_overlap * _ARTIST_OVERLAP_WEIGHT
         score += track.get("popularity", 0) * _POPULARITY_WEIGHT

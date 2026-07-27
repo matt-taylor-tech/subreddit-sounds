@@ -61,11 +61,13 @@ def _items():
     ]
 
 
-def test_curator_channel_no_longer_rejects_every_candidate():
-    # The old behaviour: artist="Majestic Casual" matched no candidate's artist
-    # tokens, so the whole post resolved to nothing.
+def test_curator_channel_without_corroboration_matches_nothing():
+    # A curator channel agrees with no candidate and there is no genre filter to
+    # confirm one, so the only tie-breaker left is popularity — which is how a
+    # lounge-jazz track with the same song name wins over the posted one. Better
+    # to resolve nothing than to resolve the wrong track.
     out = _select_best_track(_items(), query="Ashes", artist="Majestic Casual", artist_is_hint=True)
-    assert out == "right"  # falls back to title overlap + popularity
+    assert out is None
 
 
 def test_hinted_artist_still_breaks_ties_when_it_agrees():
@@ -196,26 +198,43 @@ def test_unclassified_artist_excluded_when_the_target_says_so():
     assert out is None
 
 
-def test_unclassified_artist_included_by_default():
+def test_unclassified_artist_included_by_default_on_the_trusted_path():
     # Default preserves the historical lenient behaviour, so upgrading an existing
     # target doesn't silently shrink its playlist.
-    for hint in (True, False):
-        out = _select_best_track(
-            _one(),
-            query="Ashes",
-            artist="Unknown Band",
-            artist_is_hint=hint,
-            genre_filter="melodic death metal",
-            artist_genres_by_id={"a1": []},
-        )
-        assert out == "cand"
-
-
-def test_no_genre_filter_leaves_the_hint_path_permissive():
-    # Without a genre filter there is nothing to verify against, so a hint match
-    # is still allowed through.
-    out = _select_best_track(_one(), query="Ashes", artist="Some Channel", artist_is_hint=True)
+    out = _select_best_track(
+        _one(),
+        query="Ashes",
+        artist="Unknown Band",
+        artist_is_hint=False,
+        genre_filter="melodic death metal",
+        artist_genres_by_id={"a1": []},
+    )
     assert out == "cand"
+
+
+def test_include_unclassified_does_not_reopen_the_hinted_path():
+    # "Include unclassified artists" is about not dropping good tracks over absent
+    # metadata on the trusted path. It must not also waive the genre check for a
+    # match whose only evidence is a shared song title.
+    out = _select_best_track(
+        _one(),
+        query="Ashes",
+        artist="Some Channel",
+        artist_is_hint=True,
+        genre_filter="melodic death metal",
+        artist_genres_by_id={"a1": []},
+        include_unclassified=True,
+    )
+    assert out is None
+
+
+def test_hinted_match_needs_artist_agreement_or_a_confirmed_genre():
+    # With no genre filter there is nothing to verify against, so the hint itself
+    # has to agree with the candidate's artist.
+    agreeing = _select_best_track(_one(), query="Ashes", artist="Unknown Band", artist_is_hint=True)
+    assert agreeing == "cand"
+    disagreeing = _select_best_track(_one(), query="Ashes", artist="Some Channel", artist_is_hint=True)
+    assert disagreeing is None
 
 
 def test_genre_filter_still_rejects_a_genuine_mismatch():
@@ -235,3 +254,79 @@ def test_genre_filter_still_rejects_a_genuine_mismatch():
         artist_genres_by_id={"a1": ["dance pop"]},
     )
     assert out is None
+
+
+# ---------------------------------------------------------------------------
+# The reported regression: a jazz track on a melodic death metal playlist
+# ---------------------------------------------------------------------------
+
+
+def _time_goes_by_candidates():
+    """What Spotify returns for a bare "Time Goes By" freetext search.
+
+    The posted track is by an obscure band Spotify hasn't classified; the popular
+    homonym is a lounge-jazz ensemble. Popularity alone picks the wrong one.
+    """
+    return [
+        {
+            "id": "jazz",
+            "name": "Time Goes By",
+            "duration_ms": 300000,
+            "popularity": 55,
+            "artists": [{"id": "jz", "name": "Midnight Groove Ensemble"}],
+        },
+        {
+            "id": "posted",
+            "name": "Time Goes By",
+            "duration_ms": 260000,
+            "popularity": 8,
+            "artists": [{"id": "md", "name": "Aether Requiem"}],
+        },
+    ]
+
+
+def test_jazz_homonym_no_longer_lands_on_a_metal_playlist():
+    # A label/curator channel gives no artist evidence and Spotify has classified
+    # neither artist, so nothing confirms either candidate belongs.
+    out = _select_best_track(
+        _time_goes_by_candidates(),
+        query="Time Goes By",
+        artist="Metal Label Records",
+        artist_is_hint=True,
+        genre_filter="melodic death metal",
+        artist_genres_by_id={},
+    )
+    assert out is None
+
+
+def test_confirmed_genre_still_picks_the_posted_track_over_the_popular_homonym():
+    # Same search, but Spotify classifies both artists: the filter now has real
+    # evidence and rejects the jazz track on its genre, not on its popularity.
+    out = _select_best_track(
+        _time_goes_by_candidates(),
+        query="Time Goes By",
+        artist="Metal Label Records",
+        artist_is_hint=True,
+        genre_filter="melodic death metal",
+        artist_genres_by_id={
+            "jz": ["jazz", "lounge"],
+            "md": ["melodic death metal"],
+        },
+    )
+    assert out == "posted"
+
+
+def test_hinted_path_needs_most_of_the_title_to_match():
+    items = [
+        {
+            "id": "partial",
+            "name": "Time",
+            "duration_ms": 300000,
+            "popularity": 90,
+            "artists": [{"id": "a1", "name": "Unrelated"}],
+        }
+    ]
+    # One shared word out of three is not a title match.
+    assert _select_best_track(items, query="Time Goes By", artist="A Channel", artist_is_hint=True) is None
+    # A trusted artist already narrows the field, so partial titles stay allowed.
+    assert _select_best_track(items, query="Time Goes By", artist="Unrelated", artist_is_hint=False) == "partial"
