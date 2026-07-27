@@ -21,6 +21,7 @@ from app.services.link_resolver import (
     extract_youtube_video_id,
     is_full_album,
     is_topic_channel,
+    parse_reddit_title,
     parse_youtube_title,
 )
 from app.services.reconcile import apply_blocklist, reconcile_latest_cap
@@ -99,14 +100,23 @@ def collect_tracks(
                 log(f"  [youtube] skipped (full album)  —  {yt_title[:70]}")
                 continue
             artist, query = parse_youtube_title(yt_title)
-            # An artist read off the title, or off a "{Artist} - Topic" channel,
-            # is trustworthy. A bare channel name is a guess (it may be a label
-            # or curator), so it only nudges ranking instead of gating the match.
+            # An artist read off the video title, the Reddit post title, or a
+            # "{Artist} - Topic" channel is trustworthy. A bare channel name is a
+            # guess (it may be a label or curator), so it only nudges ranking
+            # instead of gating the match.
             artist_is_hint = False
+            source = "artist from video title"
+            if not artist:
+                # Music subreddits enforce "Artist - Song [Genre]", so the post
+                # title names the artist far more reliably than a channel does.
+                artist, reddit_query = parse_reddit_title(title)
+                if artist:
+                    query = reddit_query
+                    source = "artist from post title"
             if not artist:
                 artist = derive_artist_from_channel(yt_channel)
                 artist_is_hint = not is_topic_channel(yt_channel)
-            source = "guess from channel" if artist_is_hint else "artist"
+                source = "guess from channel" if artist_is_hint else "artist from channel"
             track_id = spotify_service.search_track(
                 query,
                 artist=artist,

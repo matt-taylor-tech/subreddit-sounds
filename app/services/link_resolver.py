@@ -100,6 +100,41 @@ def is_full_album(title: str) -> bool:
     return bool(re.search(r"\bfull\s+album\b", title, re.IGNORECASE))
 
 
+# Music subreddits ask submitters to tag the post: "Artist - Song [Genre] (2014)".
+# A square-bracket group at the end is that tag convention and is always noise; a
+# parenthesised group only is when it looks like a year or a known noise word,
+# since real track titles use parentheses ("Song (Reprise)").
+_TRAILING_SQUARE = re.compile(r"\s*\[[^\[\]]*\]\s*$")
+_TRAILING_YEAR = re.compile(r"\s*\((19|20)\d{2}\)\s*$")
+
+
+def strip_reddit_tags(title: str) -> str:
+    """Strip the trailing [Genre] / (Year) tags music subreddits ask for.
+
+    r/melodicdeathmetal and its siblings enforce "Artist - Song [Subgenre] (Year)",
+    so those tags are on nearly every post. Left in place they become junk tokens
+    in the Spotify query, and "[Melodic Death Metal]" in particular pollutes the
+    search with the genre words themselves.
+    """
+    cleaned = title.strip()
+    while True:
+        stripped = _TRAILING_YEAR.sub("", _TRAILING_SQUARE.sub("", cleaned)).strip()
+        if stripped == cleaned:
+            return _strip_noise(stripped)
+        cleaned = stripped
+
+
+def parse_reddit_title(title: str) -> tuple[str | None, str]:
+    """Split a subreddit post title into (artist, track).
+
+    Same "Artist - Track" convention as a YouTube title, after the subreddit tags
+    come off. This is a *better* artist source than a YouTube channel name: the
+    poster is describing the track, whereas a channel is frequently a label,
+    curator or compilation account that has nothing to do with the artist.
+    """
+    return parse_youtube_title(strip_reddit_tags(title))
+
+
 _TOPIC_SUFFIX = " - Topic"
 
 
