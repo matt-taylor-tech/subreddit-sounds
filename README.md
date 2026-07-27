@@ -141,12 +141,26 @@ That's it: no `.env`, no secrets on disk.
 ## Updating
 
 Your database and secret key live in the data volume, so they survive upgrades.
+Two things about Docker catch people out here:
+
+- **Updating always replaces the container.** A container can't have its image
+  swapped; that reference is fixed when it's created. So `docker pull` alone
+  changes nothing until you recreate the container, and the "new container" you
+  end up with is the update, not a mistake.
+- **Stick to the way you installed.** Compose and `docker run` use *different*
+  volumes, so switching between them points the app at an empty database and it
+  looks like a fresh install (your old data is still in the other volume, intact).
+  Compose stores its volume as `<project>_subreddit_sounds_data`, while the
+  `docker run` commands below use `subreddit-sounds-data`. Check yours with
+  `docker volume ls | grep sounds`, and pass `-v <that name>:/app/data` if you do
+  need to move a Compose install onto plain `docker run`.
 
 **Prebuilt image (recommended):** pull the new `:latest` and recreate the container.
 
 ```bash
 docker pull ghcr.io/matt-taylor-tech/subreddit-sounds:latest
-docker stop subreddit-sounds && docker rm subreddit-sounds
+# rm -f handles a running, stopped, or already-removed container in one step.
+docker rm -f subreddit-sounds
 docker run -d \
   --name subreddit-sounds \
   --restart unless-stopped \
@@ -155,12 +169,35 @@ docker run -d \
   ghcr.io/matt-taylor-tech/subreddit-sounds:latest
 ```
 
+Removing the container does not touch the named volume, so the database and
+secret key carry over to the replacement.
+
+If `docker run` reports **"container name is already in use"**, one still exists
+under that name; `docker rm -f subreddit-sounds` clears it. If it was already the
+new image and you only need it running again, `docker start subreddit-sounds` is
+enough. Check which image a container is on with
+`docker inspect --format '{{.Config.Image}}' subreddit-sounds`.
+
 New images are published automatically for each tagged release. To pin a version
-instead of tracking `latest`, use a tag like `:0.1.0`.
+instead of tracking `latest`, use a tag like `:0.1.1`.
+
+**Docker Compose (prebuilt image):** `pull` fetches the new release, and
+`up -d` recreates the container with it.
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+To pin a version: `TAG=0.1.1 docker compose up -d`.
+
+Note that `docker pull` on its own never changes a *running* container, with or
+without Compose: you always have to recreate it, which is what `up -d` does once
+the new image is present.
 
 Prefer to build from source? Use one of the options below.
 
-**Docker Compose:**
+**Docker Compose (from source):**
 
 ```bash
 git pull
