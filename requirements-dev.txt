@@ -2,4 +2,4 @@
 # The Docker image installs only requirements.txt, so these stay out of it.
 -r requirements.txt
 pytest==9.1.1
-ruff==0.16.0
+ruff==0.16.1
