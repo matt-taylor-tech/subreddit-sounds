@@ -28,6 +28,7 @@ from app.services.link_resolver import (
     parse_youtube_title,
 )
 from app.services.reconcile import apply_blocklist, reconcile_latest_cap
+from app.services.resolution_cache import ResolutionCache, fingerprint, prune
 
 
 def _parse_ids(raw: str) -> list[str]:
@@ -67,12 +68,15 @@ def collect_tracks(
     min_duration_ms: int | None = None,
     include_substyles: bool = True,
     include_unclassified: bool = True,
+    cache: ResolutionCache | None = None,
 ) -> tuple[list[str], int]:
     """
     Resolve each post URL to a Spotify track ID.
 
     Returns (track_ids_in_order, low_confidence_count).
     Direct Spotify links are high-confidence; YouTube-resolved tracks are low-confidence.
+    With a ``cache``, a video resolved on an earlier run skips the YouTube and
+    Spotify lookups entirely.
     """
     seen: set[str] = set()
     track_ids: list[str] = []
@@ -96,6 +100,16 @@ def collect_tracks(
         elif kind == "youtube":
             video_id = extract_youtube_video_id(url)
             if not video_id:
+                continue
+            found, track_id, detail = cache.get(f"yt:{video_id}") if cache else (False, None, "")
+            if found:
+                if track_id and track_id not in seen:
+                    seen.add(track_id)
+                    track_ids.append(track_id)
+                    low_confidence += 1
+                    log(f"  [youtube→spotify] {track_id}  —  {detail}  (cached)")
+                elif not track_id:
+                    log(f"  [youtube] no Spotify match for: {detail}  (cached)")
                 continue
             yt_title, yt_channel = _youtube_meta(video_id)
             if not yt_title:
@@ -131,13 +145,16 @@ def collect_tracks(
                 include_substyles=include_substyles,
                 include_unclassified=include_unclassified,
             )
+            detail = f"{yt_title[:70]}  ({source}: {artist or 'none'})"
+            if cache:
+                cache.put(f"yt:{video_id}", track_id, detail)
             if track_id and track_id not in seen:
                 seen.add(track_id)
                 track_ids.append(track_id)
                 low_confidence += 1
-                log(f"  [youtube→spotify] {track_id}  —  {yt_title[:70]}  ({source}: {artist or 'none'})")
+                log(f"  [youtube→spotify] {track_id}  —  {detail}")
             elif not track_id:
-                log(f"  [youtube] no Spotify match for: {yt_title[:70]}  ({source}: {artist or 'none'})")
+                log(f"  [youtube] no Spotify match for: {detail}")
 
         else:
             # Bandcamp / SoundCloud / article links aren't resolved yet. Logged so
@@ -155,6 +172,7 @@ def _collect_bandcamp_tracks(
     min_duration_ms: int | None = None,
     include_substyles: bool = True,
     include_unclassified: bool = True,
+    cache: ResolutionCache | None = None,
 ) -> tuple[list[str], int]:
     """Resolve Bandcamp new releases for a tag to Spotify track IDs."""
     tracks = bandcamp_service.fetch_new_tracks(tag)
@@ -162,20 +180,26 @@ def _collect_bandcamp_tracks(
     track_ids: list[str] = []
     for item in tracks:
         artist, title = item["artist"], item["title"]
-        track_id = spotify_service.search_track(
-            title,
-            artist=artist,
-            genre_filter=genre_filter,
-            min_duration_ms=min_duration_ms,
-            include_substyles=include_substyles,
-            include_unclassified=include_unclassified,
-        )
+        source = f"bc:{artist.lower()}|{title.lower()}"
+        found, track_id, _detail = cache.get(source) if cache else (False, None, "")
+        suffix = "  (cached)" if found else ""
+        if not found:
+            track_id = spotify_service.search_track(
+                title,
+                artist=artist,
+                genre_filter=genre_filter,
+                min_duration_ms=min_duration_ms,
+                include_substyles=include_substyles,
+                include_unclassified=include_unclassified,
+            )
+            if cache:
+                cache.put(source, track_id, f"{artist} - {title[:60]}")
         if track_id and track_id not in seen:
             seen.add(track_id)
             track_ids.append(track_id)
-            log(f"  [bandcamp→spotify] {track_id}  —  {artist} - {title[:60]}")
+            log(f"  [bandcamp→spotify] {track_id}  —  {artist} - {title[:60]}{suffix}")
         elif not track_id:
-            log(f"  [bandcamp] no Spotify match: {artist} - {title[:60]}")
+            log(f"  [bandcamp] no Spotify match: {artist} - {title[:60]}{suffix}")
     return track_ids, len(track_ids)
 
 
@@ -343,6 +367,10 @@ class SyncService:
                 db.commit()
                 return run.id
 
+            prune(db)
+            cache = ResolutionCache(
+                db, fingerprint(genre_filter, include_substyles, include_unclassified, min_duration)
+            )
             new_track_ids, low_conf = collect_tracks(
                 posts,
                 log,
@@ -350,6 +378,7 @@ class SyncService:
                 min_duration_ms=min_duration,
                 include_substyles=include_substyles,
                 include_unclassified=include_unclassified,
+                cache=cache,
             )
             log(f"Resolved {len(new_track_ids)} unique track(s) from Reddit ({low_conf} via YouTube title search)")
 
@@ -370,11 +399,15 @@ class SyncService:
                             min_duration_ms=min_duration,
                             include_substyles=include_substyles,
                             include_unclassified=include_unclassified,
+                            cache=cache,
                         )
                         new_track_ids = new_track_ids + bc_ids
                         log(f"Added {bc_count} track(s) from Bandcamp tag '{tag}'")
                     except Exception as exc:
                         log(f"  [bandcamp:{tag}] ERROR: {exc}")
+
+            if cache.hits:
+                log(f"Reused {cache.hits} match(es) remembered from earlier runs")
 
             # --- Resolved tracks summary ---
             track_info = spotify_service.get_tracks_info(new_track_ids)
