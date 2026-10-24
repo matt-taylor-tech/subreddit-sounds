@@ -24,6 +24,7 @@ from app.services import (
     spotify_service,
     targets_service,
 )
+from app.services.link_resolver import normalize_spotify_playlist_id
 from app.version import version_context
 
 router = APIRouter()
@@ -377,7 +378,8 @@ def _blocked_tracks(target) -> list[tuple[str, str]]:
 def _validate_target_form(db, form: dict, existing=None) -> tuple[dict | None, str | None]:
     """Validate submitted target fields; return (fields_to_save, error)."""
     subs = reddit_service.parse_subreddits(form["subreddits"])
-    if not form["playlist_id"].strip():
+    playlist_id = normalize_spotify_playlist_id(form["playlist_id"])
+    if not playlist_id:
         return None, "Playlist ID is required."
     if not subs:
         return None, "Enter at least one subreddit."
@@ -413,7 +415,7 @@ def _validate_target_form(db, form: dict, existing=None) -> tuple[dict | None, s
 
     fields = {
         "name": form["name"].strip() or "Playlist",
-        "playlist_id": form["playlist_id"].strip(),
+        "playlist_id": playlist_id,
         "subreddits": ", ".join(subs),
         "genre_filter": ", ".join(picked) or None,
         "genre_include_substyles": form["genre_include_substyles"] == "true",

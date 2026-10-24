@@ -120,9 +120,10 @@ Change the left side of `-p` (e.g. `-p 9000:8000`) to serve on another port.
 ## First-run setup
 
 1. Open the app; the first visit redirects you to `/setup`.
-2. Create your **admin login**.
-3. Connect **Spotify** and paste the target **playlist ID** (the id from the
-   playlist's share URL).
+2. Create your **admin login**, enter your **Spotify app** Client ID and Secret,
+   and pick a timezone. Reddit needs nothing (it reads the public RSS feed).
+   Setup only connects things; it doesn't create a playlist.
+3. You're signed in and taken to the dashboard. Click **Connect Spotify**.
    > **Connecting Spotify:** if your Spotify redirect/callback URI is a loopback
    > address (`http://127.0.0.1:8000/callback`), you must complete the Spotify
    > connection from a browser on the same machine that runs the app, so the
@@ -130,11 +131,10 @@ Change the left side of `-p` (e.g. `-p 9000:8000`) to serve on another port.
    > `ssh -L 8000:localhost:8000 user@host`, then open `http://127.0.0.1:8000`
    > on your own computer. You only need to connect once; the token is stored on
    > the server, so afterwards you can administer the app from any computer.
-4. Choose the **subreddit(s)**, **schedule**, and any **filters** (genre, minimum
-   track length, playlist cap) for this first playlist.
+4. Under **Playlists**, add a playlist: paste its **playlist ID** (or the whole
+   share link), choose the **subreddit(s)**, **schedule**, and any **filters**
+   (genre, playlist cap, Bandcamp tags, block-list).
 5. Hit **Run now** to do a first sync, or wait for the daily job.
-6. Add more playlists anytime under **Playlists**, each with its own subreddits,
-   filters, schedule, and optional block-list.
 
 That's it: no `.env`, no secrets on disk.
 

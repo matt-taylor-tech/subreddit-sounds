@@ -36,11 +36,13 @@ def test_login_page_renders():
         assert 'name="csrf_token"' in r.text
 
 
-def test_setup_page_embeds_the_genre_taxonomy():
+def test_target_form_embeds_the_genre_taxonomy(monkeypatch):
     # The picker is driven entirely by this payload, so a missing/renamed context
     # key would silently leave the user with an empty dropdown.
+    monkeypatch.setattr("app.services.settings_service.is_setup_complete", lambda: True)
+    monkeypatch.setattr("app.routes.is_authenticated", lambda request: True)
     with TestClient(app) as client:
-        r = client.get("/setup")
+        r = client.get("/admin/targets/new")
         assert 'id="genre-taxonomy"' in r.text
         assert '\\"post-rock\\"' in r.text or '"post-rock"' in r.text
         assert 'class="pickify"' in r.text

@@ -2,6 +2,7 @@ from app.services.link_resolver import (
     classify_url,
     derive_artist_from_channel,
     extract_spotify_track_id,
+    normalize_spotify_playlist_id,
     parse_youtube_title,
 )
 
@@ -75,3 +76,18 @@ def test_derive_artist_from_channel_handles_empty():
     assert derive_artist_from_channel(None) is None
     assert derive_artist_from_channel("") is None
     assert derive_artist_from_channel("   ") is None
+
+
+def test_normalize_playlist_id_accepts_share_links_and_uris():
+    pid = "1UXnaj6qDYSoQW4745cndy"
+    assert normalize_spotify_playlist_id(pid) == pid
+    assert normalize_spotify_playlist_id(f"  {pid} ") == pid
+    assert normalize_spotify_playlist_id(f"spotify:playlist:{pid}") == pid
+    assert normalize_spotify_playlist_id(f"https://open.spotify.com/playlist/{pid}?si=abc123") == pid
+    assert normalize_spotify_playlist_id(f"https://open.spotify.com/intl-de/playlist/{pid}") == pid
+
+
+def test_normalize_playlist_id_leaves_unrecognised_input_alone():
+    # Anything else is stored as typed, so Spotify's own error names the bad value.
+    assert normalize_spotify_playlist_id("https://example.com/x") == "https://example.com/x"
+    assert normalize_spotify_playlist_id("") == ""

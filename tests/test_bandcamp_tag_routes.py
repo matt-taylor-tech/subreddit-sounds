@@ -1,7 +1,7 @@
-"""Save-time tag validation on the target form and the setup wizard.
+"""Save-time tag validation on the target form.
 
-Both entry points hard-block a tag Bandcamp definitively doesn't have, and both
-store the canonical slug rather than what was typed. Editing an existing target
+The form hard-blocks a tag Bandcamp definitively doesn't have, and stores the
+canonical slug rather than what was typed. Editing an existing target
 must not re-check tags it already had, so a legacy value stays editable.
 """
 
@@ -13,7 +13,7 @@ os.environ["DATABASE_URL"] = "sqlite:///" + tempfile.mktemp(suffix=".db")
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import routes, setup_wizard  # noqa: E402
+from app import routes  # noqa: E402
 from app.csrf import verify_csrf  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
@@ -145,59 +145,3 @@ def test_edit_blocks_a_newly_added_bad_tag(client, monkeypatch):
         assert db.get(Target, target.id).bandcamp_tags == "post-rock"  # unchanged
     finally:
         db.close()
-
-
-_WIZARD_FORM = {
-    "admin_username": "admin",
-    "admin_password": "pw",
-    "admin_password_confirm": "pw",
-    "reddit_subreddit": "SomeSub",
-    "spotify_client_id": "cid",
-    "spotify_client_secret": "sec",
-    "spotify_playlist_id": "pl",
-}
-
-
-def _wizard_client(monkeypatch):
-    saved: dict = {}
-    created: dict = {}
-    monkeypatch.setattr(setup_wizard.settings_service, "is_setup_complete", lambda: False)
-    monkeypatch.setattr(setup_wizard.settings_service, "put_many", lambda pairs: saved.update(pairs))
-    monkeypatch.setattr(setup_wizard.reddit_service, "first_definitive_problem", lambda subs, ua: None)
-    monkeypatch.setattr(setup_wizard.targets_service, "create_target", lambda db, **f: created.update(f))
-    app.dependency_overrides[verify_csrf] = lambda: None
-    return TestClient(app), saved, created
-
-
-def test_wizard_blocks_unknown_tag(monkeypatch):
-    _stub_check(monkeypatch, setup_wizard, lambda tag: _missing(tag))
-    client, saved, created = _wizard_client(monkeypatch)
-    try:
-        r = client.post("/setup", data={**_WIZARD_FORM, "bandcamp_tag": "notatag"})
-        assert r.status_code == 400
-        assert saved == {} and created == {}  # blocked before anything persisted
-    finally:
-        app.dependency_overrides.pop(verify_csrf, None)
-
-
-def test_wizard_stores_canonical_slug(monkeypatch):
-    _stub_check(monkeypatch, setup_wizard, lambda tag: _found("post-rock"))
-    client, _saved, created = _wizard_client(monkeypatch)
-    try:
-        r = client.post("/setup", data={**_WIZARD_FORM, "bandcamp_tag": "Post Rock"}, follow_redirects=False)
-        assert r.status_code == 303
-        assert created["bandcamp_tags"] == "post-rock"
-        assert created["bandcamp_enabled_tags"] == "post-rock"
-    finally:
-        app.dependency_overrides.pop(verify_csrf, None)
-
-
-def test_wizard_allows_blank_tag(monkeypatch):
-    _stub_check(monkeypatch, setup_wizard, lambda tag: _missing(tag))
-    client, _saved, created = _wizard_client(monkeypatch)
-    try:
-        r = client.post("/setup", data=_WIZARD_FORM, follow_redirects=False)
-        assert r.status_code == 303
-        assert created["bandcamp_tags"] == ""
-    finally:
-        app.dependency_overrides.pop(verify_csrf, None)

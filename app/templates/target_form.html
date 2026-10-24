@@ -16,9 +16,10 @@
       <input id="name" name="name" value="{{ form.name }}" placeholder="e.g. Metal" />
     </div>
     <div class="input-block">
-      <label for="playlist_id">Spotify Playlist ID</label><br />
+      <label for="playlist_id">Spotify Playlist</label><br />
       <input id="playlist_id" name="playlist_id" value="{{ form.playlist_id }}"
-             placeholder="Paste the ID from your playlist URL" required />
+             placeholder="Paste the playlist's share link or its ID" required />
+      <small class="muted-small">From Spotify: <em>Share &rarr; Copy link to playlist</em>. The app only ever writes to this playlist.</small>
     </div>
     <div class="input-block">
       <label for="subreddits">Subreddit(s) (without r/)</label><br />
