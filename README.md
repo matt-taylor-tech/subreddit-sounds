@@ -179,7 +179,7 @@ enough. Check which image a container is on with
 `docker inspect --format '{{.Config.Image}}' subreddit-sounds`.
 
 New images are published automatically for each tagged release. To pin a version
-instead of tracking `latest`, use a tag like `:0.1.1`.
+instead of tracking `latest`, use a tag like `:0.2.0`.
 
 **Docker Compose (prebuilt image):** `pull` fetches the new release, and
 `up -d` recreates the container with it.
@@ -189,7 +189,7 @@ docker compose pull
 docker compose up -d
 ```
 
-To pin a version: `TAG=0.1.1 docker compose up -d`.
+To pin a version: `TAG=0.2.0 docker compose up -d`.
 
 Note that `docker pull` on its own never changes a *running* container, with or
 without Compose: you always have to recreate it, which is what `up -d` does once
