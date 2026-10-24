@@ -19,6 +19,7 @@ from app.services import (
     bandcamp_service,
     config_io,
     genre_scan_service,
+    playlist_snapshot,
     reddit_service,
     settings_service,
     spotify_service,
@@ -93,27 +94,26 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     mgr = getattr(request.app.state, "scheduler_manager", None)
     next_runs = mgr.next_runs() if mgr else {}
     connected = spotify_service.is_connected()
+    targets = targets_service.list_targets(db)
+
+    snapshots: dict[str, dict] = {}
+    if connected:
+        try:
+            snapshots = playlist_snapshot.get_many([t.playlist_id for t in targets if t.playlist_id])
+        except Exception:
+            snapshots = {}  # e.g. the token refresh failed; show the page without track lists
 
     views = []
-    for target in targets_service.list_targets(db):
+    for target in targets:
         latest_run = db.query(Run).filter(Run.target_id == target.id).order_by(desc(Run.id)).first()
-        playlist_name = None
-        playlist_tracks: list = []
-        if connected and target.playlist_id:
-            try:
-                playlist_name = spotify_service.get_playlist_name(target.playlist_id)
-                track_ids = spotify_service.get_playlist_track_ids(target.playlist_id)
-                info = spotify_service.get_tracks_info(track_ids)
-                playlist_tracks = [info.get(tid, tid) for tid in track_ids]
-            except Exception:
-                pass
+        snapshot = snapshots.get(target.playlist_id) or {}
         views.append(
             {
                 "target": target,
                 "latest_run": latest_run,
                 "next_run": next_runs.get(target.id),
-                "playlist_name": playlist_name,
-                "playlist_tracks": playlist_tracks,
+                "playlist_name": snapshot.get("name"),
+                "playlist_tracks": snapshot.get("tracks", []),
             }
         )
 
