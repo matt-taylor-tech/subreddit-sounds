@@ -25,6 +25,7 @@ from app.services import (
     targets_service,
 )
 from app.services.link_resolver import normalize_spotify_playlist_id
+from app.timezones import is_valid_timezone
 from app.version import version_context
 
 router = APIRouter()
@@ -179,6 +180,8 @@ def spotify_callback(
         raise HTTPException(status_code=400, detail="Invalid OAuth state — please try again")
     if error:
         raise HTTPException(status_code=400, detail=f"Spotify denied access: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="Spotify returned no authorization code — please try again")
     spotify_service.exchange_code(code, settings_service.get("spotify_redirect_uri"))
     return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -242,6 +245,18 @@ def settings_save(
     notify_webhook_url: str = Form(""),
 ):
     require_auth(request)
+
+    if not is_valid_timezone(sync_timezone.strip()):
+        return templates.TemplateResponse(
+            request,
+            "settings.html",
+            {
+                "settings": _settings_context(),
+                "saved": False,
+                "error": f"Unknown timezone {sync_timezone.strip()!r}. Use an IANA name such as America/New_York.",
+            },
+            status_code=400,
+        )
 
     updates = {
         "spotify_client_id": spotify_client_id.strip(),
@@ -383,6 +398,12 @@ def _validate_target_form(db, form: dict, existing=None) -> tuple[dict | None, s
         return None, "Playlist ID is required."
     if not subs:
         return None, "Enter at least one subreddit."
+    # The browser enforces these ranges too, but a hand-crafted POST used to get
+    # an out-of-range hour stored, and CronTrigger then refused it at boot.
+    if not 0 <= form["sync_hour"] <= 23 or not 0 <= form["sync_minute"] <= 59:
+        return None, "Run time must be an hour of 0–23 and a minute of 0–59."
+    if not 1 <= form["cap"] <= 500:
+        return None, "Max songs must be between 1 and 500."
     # Verify only newly-added subreddits (spare Reddit's rate limit).
     current = {s.lower() for s in reddit_service.parse_subreddits(existing.subreddits)} if existing else set()
     added = [s for s in subs if s.lower() not in current]
@@ -570,14 +591,24 @@ def target_update(
         raise HTTPException(status_code=404, detail="Target not found")
     fields, error = _validate_target_form(db, form, existing=target)
     if error:
+        # Re-show the genre checklist with what was just ticked. Without it the
+        # form fell back to the unscanned layout, which drops the ticks and both
+        # genre toggles, so fixing the error and saving again wiped the filter.
+        picked = [g.strip() for g in form["genres"] if g.strip()]
         return templates.TemplateResponse(
             request,
             "target_form.html",
             {
-                "form": form,
+                "form": {
+                    **form,
+                    "genre_include_substyles": form["genre_include_substyles"] == "true",
+                    "genre_include_unclassified": form["genre_include_unclassified"] == "true",
+                },
                 "action": f"/admin/targets/{target_id}",
                 "target_id": target_id,
                 "blocked_tracks": _blocked_tracks(target),
+                "genre_rows": genre_scan_service.picker_rows(target, chosen=picked),
+                "genre_scan": genre_scan_service.load_scan(target),
                 "error": error,
             },
             status_code=400,

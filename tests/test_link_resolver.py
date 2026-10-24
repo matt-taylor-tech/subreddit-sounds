@@ -91,3 +91,14 @@ def test_normalize_playlist_id_leaves_unrecognised_input_alone():
     # Anything else is stored as typed, so Spotify's own error names the bad value.
     assert normalize_spotify_playlist_id("https://example.com/x") == "https://example.com/x"
     assert normalize_spotify_playlist_id("") == ""
+
+
+def test_extract_spotify_track_id_from_localised_share_link():
+    # Share links from non-English clients carry a locale segment; these were
+    # classified as Spotify but resolved to nothing and silently skipped.
+    url = "https://open.spotify.com/intl-de/track/4uLU6hMCjMI75M1A2tKUQC?si=x"
+    assert extract_spotify_track_id(url) == "4uLU6hMCjMI75M1A2tKUQC"
+
+
+def test_extract_spotify_track_id_ignores_album_links():
+    assert extract_spotify_track_id("https://open.spotify.com/album/1DFixLWuPkv3KT3TnV35m3") is None

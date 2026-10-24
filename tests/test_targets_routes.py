@@ -163,3 +163,15 @@ def test_destructive_actions_ask_before_acting(client):
     assert 'data-confirm="Delete the playlist' in page
     # The name is escaped as attribute text rather than injected as JS.
     assert "Quote&#39;d &amp; &lt;Risky&gt;" in page
+
+
+def test_create_rejects_out_of_range_schedule(client):
+    r = client.post("/admin/targets", data=_form(sync_hour="24"), follow_redirects=False)
+    assert r.status_code == 400
+    assert "Run time" in r.text
+
+
+def test_create_rejects_out_of_range_cap(client):
+    r = client.post("/admin/targets", data=_form(cap="0"), follow_redirects=False)
+    assert r.status_code == 400
+    assert "Max songs" in r.text

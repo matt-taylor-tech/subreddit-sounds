@@ -22,6 +22,8 @@ _TARGET_FIELDS = [
     "playlist_id",
     "subreddits",
     "genre_filter",
+    "genre_include_substyles",
+    "genre_include_unclassified",
     "cap",
     "bandcamp_enabled",
     "bandcamp_tags",

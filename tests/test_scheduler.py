@@ -110,3 +110,20 @@ def test_scheduled_job_runs_target(monkeypatch):
     db.close()
     m._scheduled_job(t.id)
     assert calls == [(t.id, "scheduled")]  # unchanged
+
+
+def test_bad_stored_values_do_not_stop_scheduling(monkeypatch):
+    # These used to make CronTrigger raise inside start(), so the app wouldn't boot.
+    db = SessionLocal()
+    good_id = targets_service.create_target(db, name="Good", playlist_id="P1", enabled=True, sync_hour=7).id
+    bad_id = targets_service.create_target(db, name="Bad", playlist_id="P2", enabled=True, sync_hour=99).id
+    db.close()
+
+    m = _mgr(monkeypatch, tz="Mars/Olympus_Mons")
+    try:
+        m._apply_schedule()
+        assert _ids(m) == {f"target_{good_id}"}  # bad target skipped, not fatal
+        assert str(m.scheduler.get_job(f"target_{good_id}").trigger.timezone) == "UTC"
+        assert f"target_{bad_id}" not in _ids(m)
+    finally:
+        m.shutdown()

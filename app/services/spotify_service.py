@@ -116,10 +116,12 @@ def add_tracks(playlist_id: str, track_ids: list[str]) -> None:
     uris = [f"spotify:track:{tid}" for tid in track_ids]
     with httpx.Client() as client:
         for i in range(0, len(uris), 100):
+            # Batch i lands at position i, so more than 100 tracks keep their
+            # newest-first order (position 0 for every batch reversed the batches).
             r = client.post(
                 f"{_API}/playlists/{playlist_id}/tracks",
                 headers={"Authorization": f"Bearer {token}"},
-                json={"uris": uris[i : i + 100], "position": 0},
+                json={"uris": uris[i : i + 100], "position": i},
             )
             r.raise_for_status()
 
@@ -210,11 +212,13 @@ def _search_and_select(
                 for a in track.get("artists", [])
                 if isinstance(a, dict) and a.get("id")
             }
-            if artist_ids:
+            # /artists takes at most 50 ids; ten tracks with features can exceed it.
+            ordered = sorted(artist_ids)
+            for i in range(0, len(ordered), 50):
                 ar = client.get(
                     f"{_API}/artists",
                     headers={"Authorization": f"Bearer {token}"},
-                    params={"ids": ",".join(sorted(artist_ids))},
+                    params={"ids": ",".join(ordered[i : i + 50])},
                 )
                 ar.raise_for_status()
                 for row in ar.json().get("artists", []):

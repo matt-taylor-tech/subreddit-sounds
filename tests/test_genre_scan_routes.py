@@ -102,6 +102,35 @@ def test_scan_stores_the_result_and_renders_the_checklist(client, monkeypatch):
     assert "4 in the last scan" in page.text  # unclassified count surfaced
 
 
+def test_rejected_edit_keeps_the_genre_ticks_and_toggles(client, monkeypatch):
+    tid = _make_target(client)
+    db = SessionLocal()
+    target = db.get(Target, tid)
+    target.genre_scan = json.dumps(
+        {
+            "genres": [{"name": "death metal", "count": 7}, {"name": "doom metal", "count": 2}],
+            "unclassified": 0,
+            "resolved": 9,
+            "posts": 20,
+            "subreddits": ["doommetal"],
+            "scanned_at": "2026-07-25T16:00:00",
+        }
+    )
+    db.commit()
+    db.close()
+
+    # Any validation failure will do; an empty subreddit list is the cheapest.
+    r = client.post(
+        f"/admin/targets/{tid}",
+        data=_form(subreddits="", genres=["doom metal"], genre_include_substyles="true"),
+    )
+    assert r.status_code == 400
+    assert 'value="doom metal" checked' in r.text
+    assert 'value="death metal" checked' not in r.text
+    assert 'name="genre_include_substyles" value="true"\n               checked' in r.text
+    assert 'name="genre_include_unclassified" value="true"\n               checked' not in r.text
+
+
 def test_scan_failure_reports_instead_of_500(client, monkeypatch):
     tid = _make_target(client)
 

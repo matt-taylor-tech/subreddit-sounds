@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -6,8 +7,10 @@ from apscheduler.triggers.cron import CronTrigger
 from app.db import SessionLocal
 from app.services import settings_service, targets_service
 from app.services.sync_service import SyncService
+from app.timezones import is_valid_timezone
 
 _JOB_PREFIX = "target_"
+_log = logging.getLogger(__name__)
 
 
 class SchedulerManager:
@@ -54,9 +57,21 @@ class SchedulerManager:
         if not sync_enabled:
             return
 
+        # This runs at startup, so a bad stored value (e.g. from an imported
+        # config) must degrade to "that job isn't scheduled", never stop the app
+        # from booting. The forms validate too; this is the backstop.
         timezone = settings_service.get("sync_timezone", "America/New_York")
+        if not is_valid_timezone(timezone):
+            _log.error("Unknown sync_timezone %r; scheduling in UTC until it is fixed in Settings", timezone)
+            timezone = "UTC"
         for job_id, target in desired.items():
-            trigger = CronTrigger(hour=target.sync_hour, minute=target.sync_minute, timezone=timezone)
+            try:
+                trigger = CronTrigger(hour=target.sync_hour, minute=target.sync_minute, timezone=timezone)
+            except ValueError as exc:
+                _log.error("Not scheduling target %s (%s): %s", target.id, target.name, exc)
+                if self.scheduler.get_job(job_id):
+                    self.scheduler.remove_job(job_id)
+                continue
             self.scheduler.add_job(
                 self._scheduled_job, trigger=trigger, args=[target.id], id=job_id, replace_existing=True
             )
