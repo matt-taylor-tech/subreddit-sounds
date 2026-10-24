@@ -29,6 +29,36 @@ def extract_spotify_track_id(url: str) -> str | None:
     return None
 
 
+def _spotify_entity_id(url: str, kind: str) -> str | None:
+    """The id from a ``spotify:<kind>:<id>`` URI or an open.spotify.com link.
+
+    Share links may carry a locale segment (``/intl-de/playlist/<id>``) and a
+    ``?si=`` tracking query, so the kind is searched for rather than assumed to
+    be the first path segment.
+    """
+    prefix = f"spotify:{kind}:"
+    if url.startswith(prefix):
+        return url[len(prefix) :] or None
+    parsed = urlparse(url)
+    if "spotify.com" not in parsed.netloc.lower():
+        return None
+    parts = [p for p in parsed.path.split("/") if p]
+    for i, part in enumerate(parts[:-1]):
+        if part == kind:
+            return parts[i + 1]
+    return None
+
+
+def normalize_spotify_playlist_id(value: str) -> str:
+    """Accept a bare playlist id, a ``spotify:playlist:`` URI, or a share link.
+
+    People paste whatever the Share button gave them; storing the whole URL as
+    the id made every sync fail with a 404.
+    """
+    value = value.strip()
+    return _spotify_entity_id(value, "playlist") or value
+
+
 def extract_youtube_video_id(url: str) -> str | None:
     parsed = urlparse(url)
     host = parsed.netloc.lower()

@@ -1,15 +1,12 @@
 {% extends "base.html" %}
-{% block page_data %}
-<script type="application/json" id="genre-taxonomy">{{ genre_taxonomy|tojson }}</script>
-{% endblock %}
 {% block title %}First-time setup · Subreddit Sounds{% endblock %}
 {% block content %}
 <div class="card setup-card">
   <h1>First-Time Setup</h1>
-  <p>This one-time wizard sets up your admin login, connects Reddit and Spotify,
-     and creates your first playlist. It all saves to the local database, and you
-     can add more playlists or change anything later under <strong>Playlists</strong>
-     and <strong>Settings</strong>.</p>
+  <p>This one-time wizard sets up your admin login and connects Reddit and Spotify.
+     It all saves to the local database. Once you're in, connect Spotify from the
+     dashboard and add your playlists under <strong>Playlists</strong>. Everything
+     here can be changed later under <strong>Settings</strong>.</p>
   <p class="muted-small">Reddit needs no API key (it reads the public RSS feed).
      Spotify needs a free developer app, linked below. Fields marked optional can be
      left blank.</p>
@@ -37,16 +34,7 @@
     </div>
 
     <h2>2. Reddit</h2>
-    <p>Posts are read from Reddit's public RSS feed, so no API key is required. OAuth credentials are optional (see below).</p>
-    <div class="input-block">
-      <label for="reddit_subreddit">Subreddit(s) (without r/)</label><br />
-      <input id="reddit_subreddit" name="reddit_subreddit" class="chipify"
-             data-list="subreddit_options" data-placeholder="type a subreddit, press Enter" />
-      <datalist id="subreddit_options">
-        {% for sub in subreddit_suggestions %}<option value="{{ sub }}"></option>{% endfor %}
-      </datalist>
-      <small class="muted-small">Add one or more; all feed this first playlist. Type a name and press Enter to add it. Each is fetched separately and a bad one is skipped.</small>
-    </div>
+    <p>Posts are read from Reddit's public RSS feed, so no API key is required. OAuth credentials are optional (see below). You'll pick subreddits per playlist later.</p>
     <div class="row">
       <div class="input-block flex-1">
         <label for="reddit_sort">Sort</label><br />
@@ -98,65 +86,22 @@
       <input id="spotify_client_secret" name="spotify_client_secret" type="password" autocomplete="off" required />
     </div>
     <div class="input-block">
-      <label for="spotify_playlist_id">Playlist ID</label><br />
-      <input id="spotify_playlist_id" name="spotify_playlist_id" placeholder="e.g. 1UXnaj6qDYSoQW4745cndy" required />
-      <small class="muted-small">The id in your playlist's share link: <code>open.spotify.com/playlist/&lt;this part&gt;</code>. The app only ever writes to this playlist.</small>
-    </div>
-    <div class="input-block">
       <label for="spotify_redirect_uri">Redirect URI</label><br />
       <input id="spotify_redirect_uri" name="spotify_redirect_uri" value="http://127.0.0.1:8000/callback" required />
       <small class="muted-small">Add this exact value to your Spotify app's Redirect URIs. Spotify only allows HTTPS or a loopback address, so if you don't have HTTPS, keep <code>127.0.0.1</code> and do the one-time connect from the host itself (or via a tunnel: <code>ssh -L 8000:localhost:8000 user@host</code>, then open <code>http://127.0.0.1:8000</code> on your own machine). After connecting once, you can manage the app from anywhere.</small>
     </div>
 
-    <h2>4. This playlist's sync settings</h2>
+    <h2>4. Schedule</h2>
     <div class="input-block">
-      <label for="spotify_genre_filter">Genre filter for YouTube→Spotify matches (optional)</label><br />
-      <input id="spotify_genre_filter" name="spotify_genre_filter"
-             placeholder="leave blank, then pick real genres later" />
-      <small class="muted-small">Best left blank. Spotify uses thousands of very specific genre names, so guessing one
-         here is unreliable. After setup, open this playlist under <strong>Playlists</strong> and use
-         <em>Scan my subreddits for genres</em> to pick from the genres your subreddits actually contain.</small>
-    </div>
-    <div class="row">
-      <div class="input-block flex-1">
-        <label for="sync_cap">Max songs in playlist</label><br />
-        <input id="sync_cap" name="sync_cap" type="number" min="1" max="500" value="25" required />
-      </div>
-      <div class="input-block flex-1">
-        <label for="sync_timezone">Timezone</label><br />
-        <input id="sync_timezone" name="sync_timezone" value="America/New_York" required />
-      </div>
-    </div>
-    <div class="row">
-      <div class="input-block flex-1">
-        <label for="sync_hour">Run hour (0–23)</label><br />
-        <input id="sync_hour" name="sync_hour" type="number" min="0" max="23" value="7" required />
-      </div>
-      <div class="input-block flex-1">
-        <label for="sync_minute">Run minute (0–59)</label><br />
-        <input id="sync_minute" name="sync_minute" type="number" min="0" max="59" value="0" required />
-      </div>
-    </div>
-
-    <h2>5. Bandcamp new releases (optional)</h2>
-    <p>Supplements Reddit with freshly released tracks from Bandcamp tag pages.</p>
-    <div class="input-block">
-      <label>
-        <input type="checkbox" name="bandcamp_enabled" value="true" />
-        Enable Bandcamp source
-      </label>
-    </div>
-    <div class="input-block">
-      <label for="bandcamp_tag">Bandcamp tag(s)</label><br />
-      <input id="bandcamp_tag" name="bandcamp_tag" class="pickify"
-             data-allow-custom="true" data-empty-text="no tags yet" />
-      <small class="muted-small">Pick from Bandcamp's discover genres. Anything you type instead is checked against Bandcamp's tag list when you save.</small>
+      <label for="sync_timezone">Timezone</label><br />
+      <input id="sync_timezone" name="sync_timezone" value="America/New_York" required />
+      <small class="muted-small">An IANA name such as <code>America/New_York</code> or <code>Europe/London</code>. Each playlist's daily run time is in this zone.</small>
     </div>
 
     <div class="mt-sm">
       <button type="submit">Save and Continue</button>
     </div>
-    <p class="muted-small mt-sm">After saving, connect Spotify from the dashboard, then hit Run now (or a Preview dry run). Add more playlists anytime under Playlists.</p>
+    <p class="muted-small mt-sm">After saving you're signed in and taken to the dashboard: connect Spotify there, then add a playlist under Playlists.</p>
   </form>
 </div>
 {% endblock %}

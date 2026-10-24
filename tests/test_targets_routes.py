@@ -60,6 +60,17 @@ def test_create_then_list(client):
     assert "Metal" in page.text and "PL1" in page.text
 
 
+def test_create_accepts_a_pasted_share_link(client):
+    link = "https://open.spotify.com/playlist/1UXnaj6qDYSoQW4745cndy?si=abc"
+    r = client.post("/admin/targets", data=_form(playlist_id=link), follow_redirects=False)
+    assert r.status_code == 303
+    db = SessionLocal()
+    try:
+        assert db.get(Target, _first_target_id()).playlist_id == "1UXnaj6qDYSoQW4745cndy"
+    finally:
+        db.close()
+
+
 def test_create_requires_subreddit(client):
     r = client.post("/admin/targets", data=_form(subreddits=""), follow_redirects=False)
     assert r.status_code == 400

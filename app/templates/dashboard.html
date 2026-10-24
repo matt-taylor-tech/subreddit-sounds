@@ -57,7 +57,12 @@
 </div>
 {% else %}
 <div class="card">
-  <p>No playlists yet. <a href="/admin/targets/new">Add one</a> to start syncing.</p>
+  <h2>Get started</h2>
+  <ol>
+    <li>{% if spotify_connected %}<s>Connect Spotify</s> &#10003;{% else %}Connect Spotify (above).{% endif %}</li>
+    <li><a href="/admin/targets/new">Add a playlist</a>: pick its subreddits, size, and daily run time.</li>
+    <li>Hit <strong>Run now</strong> (or a dry-run preview) from the Playlists page.</li>
+  </ol>
 </div>
 {% endfor %}
 {% endblock %}
