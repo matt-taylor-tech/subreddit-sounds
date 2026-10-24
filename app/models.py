@@ -73,3 +73,20 @@ class AppSetting(Base):
     value: Mapped[str] = mapped_column(Text, default="", nullable=False)
     is_secret: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class ResolvedLink(Base):
+    """Remembered outcome of matching one post/release to a Spotify track.
+
+    Keyed by the source (a YouTube video id, a Bandcamp artist+title) *and* the
+    target's matching settings, since a different genre filter or minimum length
+    can legitimately pick a different track. ``track_id`` is NULL for "searched,
+    nothing matched", which is remembered for a shorter time than a hit.
+    """
+
+    __tablename__ = "resolved_links"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    track_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    detail: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    resolved_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False, index=True)
