@@ -1,7 +1,7 @@
 """The manual-run form: Preview submits a dry run, Run Now submits a real run.
 
 Covers both the route wiring (which dry_run value each button sends to
-SyncService.run_once) and the runs template (both buttons present, and the
+SyncService.start_in_background) and the runs template (both buttons present, and the
 just-triggered run's log auto-expands so the preview is surfaced).
 """
 
@@ -23,9 +23,9 @@ class _FakeSync:
     def __init__(self):
         self.calls = []
 
-    def run_all(self, db, trigger_type, dry_run=False):
+    def start_in_background(self, target_ids, trigger_type, dry_run=False):
         self.calls.append((trigger_type, dry_run))
-        return [123]
+        return 123
 
 
 def _run(monkeypatch, form):

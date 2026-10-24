@@ -1,10 +1,12 @@
+import time
 from collections.abc import Callable
 from datetime import datetime
-from threading import Lock
+from threading import Event, Lock, Thread
 
 import httpx
 from sqlalchemy.orm import Session
 
+from app.db import SessionLocal
 from app.models import Run, Target
 from app.services import (
     bandcamp_service,
@@ -176,6 +178,21 @@ def _collect_bandcamp_tracks(
     return track_ids, len(track_ids)
 
 
+# How often a running sync writes its log so far, so the Runs page can show progress.
+_LOG_FLUSH_SEC = 2.0
+
+
+def mark_interrupted_runs(db: Session) -> int:
+    """Fail runs left "running" by a restart; otherwise they'd spin forever."""
+    stale = db.query(Run).filter(Run.status == "running").all()
+    for run in stale:
+        run.status = "failed"
+        run.message = "Interrupted: the app restarted while this run was in progress"
+        run.ended_at = run.ended_at or datetime.utcnow()
+    db.commit()
+    return len(stale)
+
+
 def _fetch_all_posts(
     subreddits: list[str],
     user_agent: str,
@@ -217,6 +234,39 @@ class SyncService:
                 self._locks[target_id] = lock
             return lock
 
+    def start_in_background(
+        self, target_ids: list[int], trigger_type: str, dry_run: bool = False, wait: float = 5.0
+    ) -> int | None:
+        """Sync the given targets in turn on a worker thread.
+
+        A sync can take minutes (Reddit pacing, one Spotify search per post),
+        which used to hold the browser request open until a proxy timed it out.
+        Returns the first run's id as soon as its row exists (so the caller can
+        link to its live log), or None if every target was already running.
+        """
+        started = Event()
+        first: list[int] = []
+
+        def on_start(run_id: int) -> None:
+            if not first:
+                first.append(run_id)
+                started.set()
+
+        def worker() -> None:
+            db = SessionLocal()
+            try:
+                for target_id in target_ids:
+                    target = targets_service.get_target(db, target_id)
+                    if target is not None:
+                        self.run_once(db, target, trigger_type, dry_run=dry_run, on_start=on_start)
+            finally:
+                db.close()
+                started.set()
+
+        Thread(target=worker, name="manual-sync", daemon=True).start()
+        started.wait(wait)
+        return first[0] if first else None
+
     def run_all(self, db: Session, trigger_type: str, dry_run: bool = False) -> list[int]:
         """Sync every enabled target in turn; returns the created run ids."""
         run_ids: list[int] = []
@@ -226,7 +276,14 @@ class SyncService:
                 run_ids.append(run_id)
         return run_ids
 
-    def run_once(self, db: Session, target: Target, trigger_type: str, dry_run: bool = False) -> int | None:
+    def run_once(
+        self,
+        db: Session,
+        target: Target,
+        trigger_type: str,
+        dry_run: bool = False,
+        on_start: Callable[[int], None] | None = None,
+    ) -> int | None:
         lock = self._lock_for(target.id or 0)
         if not lock.acquire(blocking=False):
             return None
@@ -241,11 +298,19 @@ class SyncService:
         db.add(run)
         db.commit()
         db.refresh(run)
+        if on_start:
+            on_start(run.id)
 
         lines: list[str] = []
+        last_flush = time.monotonic()
 
         def log(msg: str) -> None:
+            nonlocal last_flush
             lines.append(msg)
+            if time.monotonic() - last_flush >= _LOG_FLUSH_SEC:
+                run.log = "\n".join(lines)
+                db.commit()
+                last_flush = time.monotonic()
 
         try:
             subreddits = reddit_service.parse_subreddits(target.subreddits)

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   {# Each page names itself, so browser tabs and history are distinguishable. #}
   <title>{% block title %}{{ title if title else "Subreddit Sounds" }}{% endblock %}</title>
+  {% block head %}{% endblock %}
   <style>
     :root {
       --bg: #0f172a;
