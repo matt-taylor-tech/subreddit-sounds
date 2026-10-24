@@ -86,6 +86,9 @@
       </tbody>
     </table>
   </div>
+  <p class="muted-small mt-sm">Showing the latest {{ runs | length }} run(s).
+    {% if retention_days %}Runs older than {{ retention_days }} days are deleted automatically
+    (<a href="/admin/settings">change</a>).{% endif %}</p>
   {% else %}
   <p>No runs yet. Use <strong>Run now</strong> above, or wait for the next scheduled sync.</p>
   {% endif %}

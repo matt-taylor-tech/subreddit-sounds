@@ -10,11 +10,12 @@ classified) often turns up within days.
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
 from app.models import ResolvedLink
+from app.timeutil import utcnow
 
 # Bump whenever the matching logic changes, so an upgrade re-resolves
 # everything instead of keeping a month of matches made by the old rules.
@@ -49,7 +50,7 @@ class ResolutionCache:
         if row is None:
             return False, None, ""
         ttl = HIT_TTL if row.track_id else MISS_TTL
-        if datetime.utcnow() - row.resolved_at > ttl:
+        if utcnow() - row.resolved_at > ttl:
             return False, None, ""
         self.hits += 1
         return True, row.track_id, row.detail
@@ -62,13 +63,13 @@ class ResolutionCache:
             self.db.add(row)
         row.track_id = track_id
         row.detail = detail
-        row.resolved_at = datetime.utcnow()
+        row.resolved_at = utcnow()
         self.db.commit()
 
 
 def prune(db: Session) -> int:
     """Drop rows too old to be used again."""
-    cutoff = datetime.utcnow() - max(HIT_TTL, MISS_TTL)
+    cutoff = utcnow() - max(HIT_TTL, MISS_TTL)
     deleted = db.query(ResolvedLink).filter(ResolvedLink.resolved_at < cutoff).delete()
     db.commit()
     return deleted

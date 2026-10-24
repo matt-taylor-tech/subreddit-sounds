@@ -2,7 +2,7 @@
 
 import os
 import tempfile
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 os.environ["DATABASE_URL"] = "sqlite:///" + tempfile.mktemp(suffix=".db")
 
@@ -12,6 +12,7 @@ from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.models import ResolvedLink  # noqa: E402
 from app.services import resolution_cache, sync_service  # noqa: E402
 from app.services.resolution_cache import ResolutionCache, fingerprint  # noqa: E402
+from app.timeutil import utcnow  # noqa: E402
 
 Base.metadata.create_all(bind=engine)
 
@@ -27,7 +28,7 @@ def db():
 
 def _age(db, days):
     for row in db.query(ResolvedLink).all():
-        row.resolved_at = datetime.utcnow() - timedelta(days=days)
+        row.resolved_at = utcnow() - timedelta(days=days)
     db.commit()
 
 

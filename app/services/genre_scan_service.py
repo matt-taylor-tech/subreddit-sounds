@@ -16,10 +16,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from datetime import datetime
 
 from app.models import Target
 from app.services import reddit_service, settings_service, spotify_service, sync_service
+from app.timeutil import utcnow
 
 # Deliberately smaller than a sync's window: a scan runs while someone waits on a
 # form submit, and a genre mix doesn't need 100 posts per subreddit to be clear.
@@ -95,7 +95,7 @@ def scan_target(target: Target, log: Callable[[str], None] | None = None) -> dic
         "resolved": len(track_ids),
         "posts": len(posts),
         "subreddits": subreddits,
-        "scanned_at": datetime.utcnow().isoformat(timespec="seconds"),
+        "scanned_at": utcnow().isoformat(timespec="seconds"),
     }
 
 

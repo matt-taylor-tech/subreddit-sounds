@@ -1,6 +1,5 @@
 import time
 from collections.abc import Callable
-from datetime import datetime
 from threading import Event, Lock, Thread
 
 import httpx
@@ -29,6 +28,7 @@ from app.services.link_resolver import (
 )
 from app.services.reconcile import apply_blocklist, reconcile_latest_cap
 from app.services.resolution_cache import ResolutionCache, fingerprint, prune
+from app.timeutil import utcnow
 
 
 def _parse_ids(raw: str) -> list[str]:
@@ -213,7 +213,7 @@ def mark_interrupted_runs(db: Session) -> int:
     for run in stale:
         run.status = "failed"
         run.message = "Interrupted: the app restarted while this run was in progress"
-        run.ended_at = run.ended_at or datetime.utcnow()
+        run.ended_at = run.ended_at or utcnow()
     db.commit()
     return len(stale)
 
@@ -362,7 +362,7 @@ class SyncService:
                 run.status = "failed"
                 run.message = "Spotify not connected"
                 run.log = "\n".join(lines)
-                run.ended_at = datetime.utcnow()
+                run.ended_at = utcnow()
                 db.add(run)
                 db.commit()
                 return run.id
@@ -493,7 +493,7 @@ class SyncService:
             run.message = f"{type(exc).__name__}: {exc}"
         finally:
             run.log = "\n".join(lines)
-            run.ended_at = datetime.utcnow()
+            run.ended_at = utcnow()
             db.add(run)
             db.commit()
             failed = run.status == "failed"
