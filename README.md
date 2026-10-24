@@ -228,14 +228,20 @@ be turned off under **Settings → Notifications**.
 **Automatic updates:** the app deliberately can't upgrade itself from the GUI.
 Doing that would mean mounting the Docker socket into the container, which gives
 a web app root-equivalent control of the host. If you want hands-off upgrades,
-run [Watchtower](https://containrrr.dev/watchtower/) next to it, scoped to this
-one container:
+run [Watchtower](https://github.com/nicholas-fedor/watchtower) next to it, scoped
+to this one container:
 
 ```bash
 docker run -d --name watchtower --restart unless-stopped \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  containrrr/watchtower subreddit-sounds --interval 86400
+  nickfedor/watchtower subreddit-sounds --interval 86400
 ```
+
+Note the image is `nickfedor/watchtower`, the maintained fork. The original
+`containrrr/watchtower` was archived in December 2025 and its last release
+predates Docker 28, so it gets no security patches and is reported to break
+against newer Docker API versions. Flags, environment variables and labels are
+unchanged between the two, so an existing install only needs the image swapped.
 
 ## Configuration
 
