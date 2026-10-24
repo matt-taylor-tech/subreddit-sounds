@@ -12,14 +12,12 @@ def classify_url(url: str) -> str:
 
 
 def extract_spotify_track_id(url: str) -> str | None:
-    if url.startswith("spotify:track:"):
-        return url.split(":")[-1]
+    track_id = _spotify_entity_id(url, "track")
+    if track_id:
+        return track_id
     parsed = urlparse(url)
     if "spotify.com" not in parsed.netloc.lower():
         return None
-    parts = [p for p in parsed.path.split("/") if p]
-    if len(parts) >= 2 and parts[0] == "track":
-        return parts[1]
     if parsed.query:
         q = parse_qs(parsed.query)
         if "uri" in q:

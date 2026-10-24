@@ -90,3 +90,17 @@ def test_a_new_secret_still_replaces_the_old_one(client):
     }
     client.post("/admin/settings", data=form, follow_redirects=False)
     assert settings_service.get("spotify_client_secret") == "rotated-secret"
+
+
+def test_unknown_timezone_is_rejected_before_saving(client):
+    # Saving one used to 500, then stop the app booting on the next restart.
+    before = settings_service.get("sync_timezone")
+    form = {
+        "spotify_client_id": "cid",
+        "spotify_redirect_uri": "http://127.0.0.1:8000/callback",
+        "sync_timezone": "Mars/Olympus_Mons",
+    }
+    r = client.post("/admin/settings", data=form)
+    assert r.status_code == 400
+    assert "Unknown timezone" in r.text
+    assert settings_service.get("sync_timezone") == before

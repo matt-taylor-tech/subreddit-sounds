@@ -87,6 +87,8 @@ def collect_tracks(
                 seen.add(track_id)
                 track_ids.append(track_id)
                 log(f"  [spotify] {track_id}  —  {title[:70]}")
+            elif not track_id:
+                log(f"  [spotify] skipped (not a track link)  —  {url[:70]}")
 
         elif kind == "youtube":
             video_id = extract_youtube_video_id(url)

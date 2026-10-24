@@ -116,14 +116,16 @@ def selected_genres(target: Target) -> list[str]:
     return [g.strip() for g in (target.genre_filter or "").split(",") if g.strip()]
 
 
-def picker_rows(target: Target) -> list[dict]:
+def picker_rows(target: Target, chosen: list[str] | None = None) -> list[dict]:
     """Rows for the genre checklist: every scanned genre, plus any stray picks.
 
     A genre the user picked before (or that has since dropped out of the feed)
     still needs a checked row, or saving the form would silently discard it.
+    ``chosen`` overrides the saved picks, for re-showing a rejected submission.
     """
     scan = load_scan(target)
-    chosen = selected_genres(target)
+    if chosen is None:
+        chosen = selected_genres(target)
     chosen_lower = {g.lower() for g in chosen}
     rows: list[dict] = []
     seen: set[str] = set()

@@ -95,3 +95,25 @@ def test_import_skips_target_without_playlist_id():
         assert targets_service.list_targets(db) == []
     finally:
         db.close()
+
+
+def test_round_trip_keeps_the_genre_toggles():
+    # Not exporting these made a restore silently reset a strict playlist to the
+    # lenient defaults (substyles on, unclassified artists allowed).
+    db = SessionLocal()
+    try:
+        targets_service.create_target(
+            db,
+            name="Strict",
+            playlist_id="P1",
+            subreddits="Metal",
+            genre_filter="death metal",
+            genre_include_substyles=False,
+            genre_include_unclassified=False,
+        )
+        config_io.import_config(db, config_io.export_config(db))
+        (restored,) = targets_service.list_targets(db)
+        assert restored.genre_include_substyles is False
+        assert restored.genre_include_unclassified is False
+    finally:
+        db.close()
