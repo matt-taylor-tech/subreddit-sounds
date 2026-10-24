@@ -23,6 +23,7 @@ from app.services import (
     settings_service,
     spotify_service,
     targets_service,
+    update_service,
 )
 from app.services.link_resolver import normalize_spotify_playlist_id
 from app.timezones import is_valid_timezone
@@ -30,7 +31,8 @@ from app.version import version_context
 
 router = APIRouter()
 templates = Jinja2Templates(
-    directory="app/templates", context_processors=[csrf_context, curated_context, version_context]
+    directory="app/templates",
+    context_processors=[csrf_context, curated_context, version_context, update_service.update_context],
 )
 
 
@@ -147,6 +149,16 @@ def run_now(
     return RedirectResponse(url="/admin/runs", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/admin/update/dismiss")
+def update_dismiss(request: Request, _csrf: None = Depends(verify_csrf)):
+    """Hide the banner for this release; a newer one shows it again."""
+    require_auth(request)
+    latest = settings_service.get("update_latest_version", "")
+    if latest:
+        settings_service.put("update_dismissed_version", latest)
+    return RedirectResponse(url="/admin/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+
 # ---------------------------------------------------------------------------
 # Spotify OAuth
 # ---------------------------------------------------------------------------
@@ -214,6 +226,7 @@ def _settings_context() -> dict:
         "sync_timezone": settings_service.get("sync_timezone", "America/New_York"),
         "sync_enabled": settings_service.get("sync_enabled", "true"),
         "notify_webhook_url": settings_service.get("notify_webhook_url", ""),
+        "update_check_enabled": settings_service.get("update_check_enabled", "true"),
     }
 
 
@@ -243,6 +256,7 @@ def settings_save(
     sync_timezone: str = Form("America/New_York"),
     sync_enabled: str = Form("false"),
     notify_webhook_url: str = Form(""),
+    update_check_enabled: str = Form("false"),
 ):
     require_auth(request)
 
@@ -268,6 +282,7 @@ def settings_save(
         "min_track_duration_sec": str(max(0, min_track_duration_sec)),
         "sync_timezone": sync_timezone.strip(),
         "sync_enabled": "true" if sync_enabled == "true" else "false",
+        "update_check_enabled": "true" if update_check_enabled == "true" else "false",
     }
     # Only overwrite the secret if a new one was provided
     if spotify_client_secret.strip():

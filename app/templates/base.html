@@ -331,6 +331,19 @@
       padding: 1rem 0;
     }
     .sitefooter a { color: var(--muted); }
+    .update-banner {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+      border: 1px solid color-mix(in srgb, var(--accent), transparent 60%);
+      border-radius: 8px;
+      padding: 0.5rem 0.9rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .update-banner form { margin: 0 0 0 auto; }
+    .update-banner button { padding: 0.2rem 0.6rem; font-size: 0.8rem; }
     details summary {
       cursor: pointer;
       color: var(--muted);
@@ -364,11 +377,24 @@
       </div>
       <a href="/logout">Log out</a>
     </nav>
+    {% if update_available and not update_available.dismissed %}
+    <div class="update-banner" role="status">
+      <span><span class="pill pill-ok">update</span> subreddit-sounds v{{ update_available.version }} is out
+        (you have v{{ app_version }}).</span>
+      <a href="{{ update_available.url }}" target="_blank" rel="noopener">Release notes ↗</a>
+      <a href="https://github.com/matt-taylor-tech/subreddit-sounds#updating" target="_blank" rel="noopener">How to update ↗</a>
+      <form method="post" action="/admin/update/dismiss">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <button type="submit">Dismiss</button>
+      </form>
+    </div>
+    {% endif %}
     {% endif %}
     {% block content %}{% endblock %}
     <footer class="sitefooter">
       <a href="https://github.com/matt-taylor-tech/subreddit-sounds/releases" target="_blank" rel="noopener">
         subreddit-sounds v{{ app_version }}</a>
+      {% if update_available %}&middot; <a href="{{ update_available.url }}" target="_blank" rel="noopener">v{{ update_available.version }} available</a>{% endif %}
     </footer>
   </div>
   {# Pages with a genre picker embed the taxonomy here; keeps it off every other page. #}

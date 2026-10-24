@@ -115,6 +115,13 @@
              placeholder="https://… (leave blank to disable)" />
       <small class="muted-small">If set, a failed sync run POSTs a JSON alert here (works with Discord, Slack, ntfy, Apprise).</small>
     </div>
+    <div class="input-block">
+      <label>
+        <input type="checkbox" name="update_check_enabled" value="true" {{ 'checked' if settings.update_check_enabled == 'true' }} />
+        Tell me when a new version is released
+      </label>
+      <small class="muted-small">Checks GitHub's releases page about once a day. Nothing about you or your playlists is sent.</small>
+    </div>
   </div>
 
   <button type="submit">Save Settings</button>
