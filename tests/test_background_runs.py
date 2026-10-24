@@ -3,6 +3,7 @@
 import os
 import tempfile
 import threading
+import time
 from datetime import datetime
 
 os.environ["DATABASE_URL"] = "sqlite:///" + tempfile.mktemp(suffix=".db")
@@ -62,6 +63,11 @@ def test_returns_the_first_run_id_before_the_sync_finishes():
     assert run_id is not None
     assert svc.ran == []  # still in progress: the request didn't wait for it
     svc.release.set()
+    # Let the worker finish both targets, or it writes runs into the next test.
+    deadline = time.monotonic() + 5
+    while len(svc.ran) < len(ids) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert svc.ran == ids
 
 
 def test_returns_none_when_nothing_started():
@@ -79,7 +85,7 @@ def test_log_is_written_while_the_run_is_still_going(monkeypatch):
         log("fetched r/Metal")
         check = SessionLocal()
         try:
-            seen.append(check.query(Run).one().log)
+            seen.append(check.query(Run).filter(Run.target_id == tid).one().log)
         finally:
             check.close()
         raise RuntimeError("stop here")
