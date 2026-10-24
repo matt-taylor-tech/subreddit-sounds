@@ -220,6 +220,23 @@ docker run -d \
 
 Recreating the container is expected; nothing persistent lives inside it.
 
+**Knowing when to update:** the admin console shows a banner when a newer
+GitHub release exists. It checks GitHub's public releases API about once a day,
+sends nothing about you or your playlists, fails silently when offline, and can
+be turned off under **Settings → Notifications**.
+
+**Automatic updates:** the app deliberately can't upgrade itself from the GUI.
+Doing that would mean mounting the Docker socket into the container, which gives
+a web app root-equivalent control of the host. If you want hands-off upgrades,
+run [Watchtower](https://containrrr.dev/watchtower/) next to it, scoped to this
+one container:
+
+```bash
+docker run -d --name watchtower --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower subreddit-sounds --interval 86400
+```
+
 ## Configuration
 
 All configuration is done in the admin console and stored in the database, split

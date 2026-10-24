@@ -1,15 +1,17 @@
 import logging
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from app.db import SessionLocal
-from app.services import settings_service, targets_service
+from app.services import settings_service, targets_service, update_service
 from app.services.sync_service import SyncService
 from app.timezones import is_valid_timezone
 
 _JOB_PREFIX = "target_"
+_UPDATE_JOB = "update_check"
 _log = logging.getLogger(__name__)
 
 
@@ -22,6 +24,15 @@ class SchedulerManager:
         """Schedule per-target jobs if setup has been completed."""
         if not self.scheduler.running:
             self.scheduler.start()
+        # First tick a minute after boot, off the startup path. The job no-ops
+        # until setup is done, when disabled, or when the cache is fresh.
+        self.scheduler.add_job(
+            update_service.maybe_check,
+            trigger=IntervalTrigger(hours=6),
+            id=_UPDATE_JOB,
+            next_run_time=datetime.now(UTC) + timedelta(minutes=1),
+            replace_existing=True,
+        )
         if not settings_service.is_setup_complete():
             return
         self._apply_schedule()
