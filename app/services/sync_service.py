@@ -11,6 +11,7 @@ from app.models import Run, Target
 from app.services import (
     bandcamp_service,
     notify_service,
+    playlist_snapshot,
     reddit_service,
     settings_service,
     spotify_service,
@@ -421,14 +422,20 @@ class SyncService:
             if dry_run:
                 log("Dry run — no changes written to Spotify")
             else:
-                if to_add:
-                    spotify_service.add_tracks(playlist_id, to_add)
-                    log(f"Added {len(to_add)} track(s)")
-                if to_remove:
-                    spotify_service.remove_tracks(playlist_id, to_remove)
-                    log(f"Removed {len(to_remove)} track(s)")
-                if not to_add and not to_remove:
-                    log("Playlist already up to date — no changes needed")
+                try:
+                    if to_add:
+                        spotify_service.add_tracks(playlist_id, to_add)
+                        log(f"Added {len(to_add)} track(s)")
+                    if to_remove:
+                        spotify_service.remove_tracks(playlist_id, to_remove)
+                        log(f"Removed {len(to_remove)} track(s)")
+                    if not to_add and not to_remove:
+                        log("Playlist already up to date — no changes needed")
+                finally:
+                    # Even a half-applied write changed the playlist; drop the
+                    # dashboard's cached copy so it doesn't show the old list.
+                    if to_add or to_remove:
+                        playlist_snapshot.invalidate(playlist_id)
 
             # Persist block-list state onto the target (real runs only): the
             # growing block-list, and the desired set used to detect the next
