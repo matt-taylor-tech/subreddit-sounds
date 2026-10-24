@@ -143,10 +143,14 @@ def run_now(
     _csrf: None = Depends(verify_csrf),
 ):
     require_auth(request)
-    run_ids = request.app.state.sync_service.run_all(db=db, trigger_type="manual", dry_run=dry_run)
-    if run_ids:
-        return RedirectResponse(url=f"/admin/runs?run_id={run_ids[0]}", status_code=status.HTTP_303_SEE_OTHER)
-    return RedirectResponse(url="/admin/runs", status_code=status.HTTP_303_SEE_OTHER)
+    target_ids = [t.id for t in targets_service.list_targets(db, enabled_only=True)]
+    run_id = request.app.state.sync_service.start_in_background(target_ids, trigger_type="manual", dry_run=dry_run)
+    return _runs_redirect(run_id)
+
+
+def _runs_redirect(run_id: int | None) -> RedirectResponse:
+    url = f"/admin/runs?run_id={run_id}" if run_id is not None else "/admin/runs"
+    return RedirectResponse(url=url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/admin/update/dismiss")
@@ -663,10 +667,8 @@ def target_run(
     target = targets_service.get_target(db, target_id)
     if target is None:
         raise HTTPException(status_code=404, detail="Target not found")
-    run_id = request.app.state.sync_service.run_once(db=db, target=target, trigger_type="manual", dry_run=dry_run)
-    if run_id is not None:
-        return RedirectResponse(url=f"/admin/runs?run_id={run_id}", status_code=status.HTTP_303_SEE_OTHER)
-    return RedirectResponse(url="/admin/runs", status_code=status.HTTP_303_SEE_OTHER)
+    run_id = request.app.state.sync_service.start_in_background([target_id], trigger_type="manual", dry_run=dry_run)
+    return _runs_redirect(run_id)
 
 
 @router.post("/admin/targets/{target_id}/blocklist/remove")

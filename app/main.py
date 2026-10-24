@@ -38,6 +38,15 @@ async def lifespan(app: FastAPI):
 
     targets_service.backfill_default_target()
 
+    from app.db import SessionLocal
+    from app.services.sync_service import mark_interrupted_runs
+
+    db = SessionLocal()
+    try:
+        mark_interrupted_runs(db)
+    finally:
+        db.close()
+
     app.state.sync_service = SyncService()
     app.state.scheduler_manager = SchedulerManager(app.state.sync_service)
 
