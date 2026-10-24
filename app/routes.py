@@ -1,6 +1,5 @@
 import json
 import secrets
-from datetime import datetime
 from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
@@ -20,12 +19,14 @@ from app.services import (
     config_io,
     genre_scan_service,
     reddit_service,
+    run_retention,
     settings_service,
     spotify_service,
     targets_service,
     update_service,
 )
 from app.services.link_resolver import normalize_spotify_playlist_id
+from app.timeutil import utcnow
 from app.timezones import is_valid_timezone
 from app.version import version_context
 
@@ -43,7 +44,7 @@ def require_auth(request: Request) -> None:
 
 @router.get("/healthz")
 def healthz() -> dict[str, str]:
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "ok", "timestamp": utcnow().isoformat()}
 
 
 @router.get("/login")
@@ -132,7 +133,11 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 def runs(request: Request, db: Session = Depends(get_db), run_id: int | None = None):
     require_auth(request)
     run_items = db.query(Run).order_by(desc(Run.id)).limit(100).all()
-    return templates.TemplateResponse(request, "runs.html", {"runs": run_items, "highlight_run_id": run_id})
+    return templates.TemplateResponse(
+        request,
+        "runs.html",
+        {"runs": run_items, "highlight_run_id": run_id, "retention_days": run_retention.retention_days()},
+    )
 
 
 @router.post("/admin/run")
@@ -227,6 +232,7 @@ def _settings_context() -> dict:
         "reddit_client_id": settings_service.get("reddit_client_id", ""),
         "reddit_client_secret_set": bool(settings_service.get("reddit_client_secret", "")),
         "min_track_duration_sec": settings_service.get("min_track_duration_sec", "120"),
+        "run_retention_days": str(run_retention.retention_days()),
         "sync_timezone": settings_service.get("sync_timezone", "America/New_York"),
         "sync_enabled": settings_service.get("sync_enabled", "true"),
         "notify_webhook_url": settings_service.get("notify_webhook_url", ""),
@@ -257,6 +263,7 @@ def settings_save(
     reddit_client_id: str = Form(""),
     reddit_client_secret: str = Form(""),
     min_track_duration_sec: int = Form(120),
+    run_retention_days: int = Form(run_retention.DEFAULT_DAYS),
     sync_timezone: str = Form("America/New_York"),
     sync_enabled: str = Form("false"),
     notify_webhook_url: str = Form(""),
@@ -284,6 +291,7 @@ def settings_save(
         "reddit_client_id": reddit_client_id.strip(),
         "notify_webhook_url": notify_webhook_url.strip(),
         "min_track_duration_sec": str(max(0, min_track_duration_sec)),
+        "run_retention_days": str(max(0, run_retention_days)),
         "sync_timezone": sync_timezone.strip(),
         "sync_enabled": "true" if sync_enabled == "true" else "false",
         "update_check_enabled": "true" if update_check_enabled == "true" else "false",

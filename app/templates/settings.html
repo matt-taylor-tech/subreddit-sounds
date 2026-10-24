@@ -79,6 +79,12 @@
       </label>
       <small class="muted-small">Off pauses all scheduled runs (manual runs still work).</small>
     </div>
+    <div class="input-block">
+      <label for="run_retention_days">Keep run history for (days)</label><br />
+      <input id="run_retention_days" name="run_retention_days" type="number" min="0" max="3650"
+             value="{{ settings.run_retention_days }}" required />
+      <small class="muted-small">Older runs and their logs are deleted daily. Each playlist's latest run is always kept. 0 keeps everything.</small>
+    </div>
   </div>
 
   <div class="card">

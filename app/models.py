@@ -4,13 +4,14 @@ from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.timeutil import utcnow
 
 
 class Run(Base):
     __tablename__ = "runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="running", nullable=False)
     trigger_type: Mapped[str] = mapped_column(String(32), default="scheduled", nullable=False)
@@ -62,7 +63,7 @@ class Target(Base):
     last_desired_ids: Mapped[str] = mapped_column(Text, default="", nullable=False)
     sync_hour: Mapped[int] = mapped_column(Integer, default=7, nullable=False)
     sync_minute: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
 class AppSetting(Base):
@@ -71,4 +72,4 @@ class AppSetting(Base):
     key: Mapped[str] = mapped_column(String(128), primary_key=True)
     value: Mapped[str] = mapped_column(Text, default="", nullable=False)
     is_secret: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

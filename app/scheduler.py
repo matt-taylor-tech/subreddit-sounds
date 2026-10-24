@@ -6,12 +6,13 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.db import SessionLocal
-from app.services import settings_service, targets_service, update_service
+from app.services import run_retention, settings_service, targets_service, update_service
 from app.services.sync_service import SyncService
 from app.timezones import is_valid_timezone
 
 _JOB_PREFIX = "target_"
 _UPDATE_JOB = "update_check"
+_RETENTION_JOB = "run_retention"
 _log = logging.getLogger(__name__)
 
 
@@ -31,6 +32,13 @@ class SchedulerManager:
             trigger=IntervalTrigger(hours=6),
             id=_UPDATE_JOB,
             next_run_time=datetime.now(UTC) + timedelta(minutes=1),
+            replace_existing=True,
+        )
+        self.scheduler.add_job(
+            run_retention.prune_now,
+            trigger=IntervalTrigger(hours=24),
+            id=_RETENTION_JOB,
+            next_run_time=datetime.now(UTC) + timedelta(minutes=2),
             replace_existing=True,
         )
         if not settings_service.is_setup_complete():
