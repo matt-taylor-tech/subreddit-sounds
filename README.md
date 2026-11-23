@@ -124,7 +124,9 @@ Change the left side of `-p` (e.g. `-p 9000:8000`) to serve on another port.
 
 ## First-run setup
 
-1. Open the app; the first visit redirects you to `/setup`.
+1. Open the app; the first visit redirects you to `/setup`. **Moving from
+   another install?** Use *Restore from backup* there instead (see
+   [Moving to a new host](#moving-to-a-new-host)).
 2. Create your **admin login**, enter your **Spotify app** Client ID and Secret,
    and pick a timezone. Add Reddit API credentials here or later in Settings;
    without them subreddits can't be read (Reddit's RSS feeds shut down in Nov 2026).
@@ -289,6 +291,32 @@ docker cp subreddit-sounds:/app/data/subreddit-sounds.db ./subreddit-sounds-back
 ```
 
 Your data is untouched across image rebuilds and upgrades.
+
+You can also download the same thing from the app: **Settings → Backup &
+restore → Download full backup (.db)**. It's a consistent snapshot taken while
+the app runs, and it includes your credentials, so store it securely. The
+**Export settings (.json)** option there carries only settings and playlists
+(block-lists included), not run history or cached matches.
+
+### Moving to a new host
+
+1. **Stop the old container first** (`docker stop subreddit-sounds`). Never
+   run both at once: both would sync the same playlists.
+2. Then either:
+   - **Restore a full backup at setup (simplest).** Download a full backup from
+     the old install's Settings, start the new install, and on its setup page
+     choose *Restore from backup*. You land on the login page and sign in with
+     your old login; playlists, block-lists, history and the Spotify connection
+     all come across.
+   - **Or copy the data volume.** On the old host:
+     `docker run --rm -v subreddit-sounds-data:/d -v "$PWD":/b alpine tar czf /b/ss-data.tgz -C /d .`
+     Copy `ss-data.tgz` across, then on the new host, before first start:
+     `docker run --rm -v subreddit-sounds-data:/d -v "$PWD":/b alpine tar xzf /b/ss-data.tgz -C /d`.
+     This also carries the session secret key, so existing logins stay valid.
+3. The Spotify redirect URI comes across unchanged. You normally don't need to
+   reconnect, because the stored token works from any host. If you ever do and
+   it's a loopback URI (`http://127.0.0.1:8000/callback`), use the SSH tunnel
+   described under [First-run setup](#first-run-setup).
 
 ## Security
 

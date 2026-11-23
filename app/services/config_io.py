@@ -24,6 +24,7 @@ _TARGET_FIELDS = [
     "genre_filter",
     "genre_include_substyles",
     "genre_include_unclassified",
+    "genre_scan",
     "cap",
     "bandcamp_enabled",
     "bandcamp_tags",
