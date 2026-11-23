@@ -127,3 +127,18 @@ def test_bad_stored_values_do_not_stop_scheduling(monkeypatch):
         assert f"target_{bad_id}" not in _ids(m)
     finally:
         m.shutdown()
+
+
+def test_jobs_tolerate_firing_a_little_late(monkeypatch):
+    # The 1s default dropped real daily syncs that fired 1-3s late.
+    db = SessionLocal()
+    tid = targets_service.create_target(db, name="A", playlist_id="P1", enabled=True).id
+    db.close()
+    m = _mgr(monkeypatch)
+    try:
+        m._apply_schedule()
+        job = m.scheduler.get_job(f"target_{tid}")
+        assert job.misfire_grace_time >= 3600
+        assert job.coalesce is True
+    finally:
+        m.shutdown()

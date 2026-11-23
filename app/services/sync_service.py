@@ -228,19 +228,25 @@ def _fetch_all_posts(
     """Fetch each subreddit in turn, concatenating posts.
 
     One failing subreddit is logged and skipped rather than aborting the whole
-    run (mirrors the Bandcamp per-tag handling). Reddit requests are paced
+    run (mirrors the Bandcamp per-tag handling). But if *every* subreddit
+    fails, raise: otherwise the run reports "success, 0 tracks" day after day
+    and the failure webhook never fires. Reddit requests are paced
     process-wide inside reddit_service, so no explicit spacing is needed here.
     Track-level dedup happens later in ``collect_tracks``, so overlapping posts
     across subreddits are fine.
     """
     all_posts: list[dict] = []
+    errors: list[str] = []
     for sub in subreddits:
         try:
             posts = reddit_service.fetch_posts(sub, user_agent, sort, timeframe, log=log)
             log(f"  r/{sub}: fetched {len(posts)} post(s)")
             all_posts.extend(posts)
         except Exception as exc:
+            errors.append(f"r/{sub}: {exc}")
             log(f"  [r/{sub}] ERROR: {exc} — skipping this subreddit")
+    if subreddits and len(errors) == len(subreddits):
+        raise RuntimeError(f"Couldn't fetch any subreddit — {'; '.join(errors)}")
     return all_posts
 
 
