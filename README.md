@@ -17,7 +17,9 @@ everything is set up in the browser on first run.
 For each playlist, on its own daily schedule, Subreddit Sounds:
 
 1. **Pulls the top posts** from that playlist's subreddit(s) (comma-separate
-   several), via Reddit's public RSS feed, or the OAuth API if you add
+   several), via the Reddit API. Reddit shut down its public RSS feeds in
+   November 2026, so this now needs approved Reddit API credentials (see
+   Requirements). Earlier versions read RSS, or the OAuth API if you added
    credentials.
 2. **Resolves each post to a Spotify track.** Direct Spotify links are taken
    as-is; YouTube links get their title and artist parsed (using the channel as
@@ -39,7 +41,7 @@ optional **failure webhook** (Discord/Slack/ntfy/Apprise).
 
 ```
 subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks ──▶ reconcile playlist
-(Reddit RSS/API)   (+ Bandcamp tags)   (direct links + YouTube matching)   (add new / trim to cap)
+  (Reddit API)     (+ Bandcamp tags)   (direct links + YouTube matching)   (add new / trim to cap)
 ```
 
 - **Scheduler:** an in-app cron job per playlist (APScheduler); each playlist
@@ -68,8 +70,11 @@ subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks
   [How To Install and Use Docker](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-22-04)
   guide first.
 - A **Spotify** account (you connect it from the admin console).
-- Optionally, **Reddit API** credentials for higher rate limits (the public RSS
-  feed works without them).
+- **Reddit API** credentials (a client ID and secret) to read subreddits.
+  Reddit shut down its public RSS feeds in November 2026, and since its Nov
+  2025 policy change new credentials are approved through Reddit's developer
+  support process rather than self-created. Without them, only Bandcamp
+  sources work.
 
 ## Quick start (prebuilt image)
 
@@ -121,7 +126,8 @@ Change the left side of `-p` (e.g. `-p 9000:8000`) to serve on another port.
 
 1. Open the app; the first visit redirects you to `/setup`.
 2. Create your **admin login**, enter your **Spotify app** Client ID and Secret,
-   and pick a timezone. Reddit needs nothing (it reads the public RSS feed).
+   and pick a timezone. Add Reddit API credentials here or later in Settings;
+   without them subreddits can't be read (Reddit's RSS feeds shut down in Nov 2026).
    Setup only connects things; it doesn't create a playlist.
 3. You're signed in and taken to the dashboard. Click **Connect Spotify**.
    > **Connecting Spotify:** if your Spotify redirect/callback URI is a loopback

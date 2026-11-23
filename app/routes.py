@@ -123,6 +123,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "dashboard.html",
         {
             "spotify_connected": connected,
+            "reddit_connected": reddit_service.has_credentials(),
             "sync_timezone": settings_service.get("sync_timezone"),
             "views": views,
         },

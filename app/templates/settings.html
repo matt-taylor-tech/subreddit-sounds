@@ -46,7 +46,7 @@
     <div class="row">
       <div class="input-block flex-1">
         <label for="reddit_client_id">OAuth Client ID <span class="muted-small">(optional)</span></label><br />
-        <input id="reddit_client_id" name="reddit_client_id" value="{{ settings.reddit_client_id }}" placeholder="leave blank to use the public RSS feed" />
+        <input id="reddit_client_id" name="reddit_client_id" value="{{ settings.reddit_client_id }}" placeholder="required to read subreddits" />
       </div>
       <div class="input-block flex-1">
         <label for="reddit_client_secret">OAuth Client Secret</label><br />
@@ -55,7 +55,7 @@
         <small class="muted-small">Never shown once saved. Type a new value only to replace it.</small>
       </div>
     </div>
-    <small class="muted-small">By default, posts are read from Reddit's public RSS feed. Since Reddit's Nov 2025 Responsible Builder Policy, new OAuth credentials require approval via Reddit's developer support process.</small>
+    <small class="muted-small">Reddit shut down its public RSS feeds in November 2026, so reading subreddits now needs approved Reddit API credentials (a client ID and secret). New credentials are granted through Reddit's developer support process.</small>
   </div>
 
   <div class="card">

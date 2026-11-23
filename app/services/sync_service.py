@@ -360,7 +360,16 @@ class SyncService:
             auth_label = "OAuth API" if reddit_service.has_credentials() else "public RSS"
             log(f"[{target.name}] playlist {playlist_id}")
             log(f"Fetching {len(subreddits)} subreddit(s) [{label}] via {auth_label}: {', '.join(subreddits)}")
-            posts = _fetch_all_posts(subreddits, user_agent, sort, timeframe, log)
+            reddit_error: str | None = None
+            try:
+                posts = _fetch_all_posts(subreddits, user_agent, sort, timeframe, log)
+            except RuntimeError as exc:
+                if not target.bandcamp_enabled:
+                    raise
+                # Bandcamp can still feed the playlist, so carry on, but the run
+                # is still reported as failed below so the outage gets noticed.
+                reddit_error = str(exc)
+                posts = []
             log(f"Fetched {len(posts)} posts total — resolving links...")
 
             if not spotify_service.is_connected():
@@ -492,6 +501,9 @@ class SyncService:
                 f"(resolved {len(new_track_ids)} tracks, {low_conf} via YouTube)"
             )
             run.status = "success"
+            if reddit_error:
+                run.status = "failed"
+                run.message = f"Reddit: {reddit_error} — Bandcamp only: {run.message}"
 
         except Exception as exc:
             log(f"ERROR: {type(exc).__name__}: {exc}")

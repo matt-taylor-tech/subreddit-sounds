@@ -7,7 +7,7 @@
      It all saves to the local database. Once you're in, connect Spotify from the
      dashboard and add your playlists under <strong>Playlists</strong>. Everything
      here can be changed later under <strong>Settings</strong>.</p>
-  <p class="muted-small">Reddit needs no API key (it reads the public RSS feed).
+  <p class="muted-small">Reddit needs approved API credentials to read subreddits (its public RSS feeds shut down in November 2026).
      Spotify needs a free developer app, linked below. Fields marked optional can be
      left blank.</p>
 
@@ -34,7 +34,7 @@
     </div>
 
     <h2>2. Reddit</h2>
-    <p>Posts are read from Reddit's public RSS feed, so no API key is required. OAuth credentials are optional (see below). You'll pick subreddits per playlist later.</p>
+    <p>Reddit shut down its public RSS feeds in November 2026, so reading subreddits now needs approved Reddit API credentials (a client ID and secret). New credentials are granted through Reddit's developer support process. You can finish setup without them and add them later under Settings. You'll pick subreddits per playlist later.</p>
     <div class="row">
       <div class="input-block flex-1">
         <label for="reddit_sort">Sort</label><br />
@@ -63,14 +63,14 @@
     <div class="row">
       <div class="input-block flex-1">
         <label for="reddit_client_id">OAuth Client ID <span class="muted-small">(optional)</span></label><br />
-        <input id="reddit_client_id" name="reddit_client_id" placeholder="leave blank to use the public RSS feed" />
+        <input id="reddit_client_id" name="reddit_client_id" placeholder="required to read subreddits" />
       </div>
       <div class="input-block flex-1">
         <label for="reddit_client_secret">OAuth Client Secret</label><br />
         <input id="reddit_client_secret" name="reddit_client_secret" type="password" autocomplete="off" />
       </div>
     </div>
-    <p><small class="muted-small">Leave blank to use Reddit's public RSS feed. Only fill these in if you already have approved Reddit OAuth credentials — since Reddit's Nov 2025 policy change, new credentials require approval via Reddit's developer support process and can no longer be self-created.</small></p>
+    <p><small class="muted-small">Since Reddit's Nov 2025 policy change, credentials can't be self-created at reddit.com/prefs/apps; they're approved through Reddit's developer support process.</small></p>
 
     <h2>3. Spotify</h2>
     <p>Create a free app at
