@@ -71,10 +71,11 @@ subreddit(s) ──▶ fetch top posts ──▶ resolve links to Spotify tracks
   guide first.
 - A **Spotify** account (you connect it from the admin console).
 - **Reddit API** credentials (a client ID and secret) to read subreddits.
-  Reddit shut down its public RSS feeds in November 2026, and since its Nov
-  2025 policy change new credentials are approved through Reddit's developer
-  support process rather than self-created. Without them, only Bandcamp
-  sources work.
+  Reddit shut down its public RSS feeds in November 2026, and new API access
+  now needs Reddit's approval. See
+  **[Getting Reddit API access](docs/reddit-api-access.md)** for the
+  step-by-step, including what to put on Reddit's request form. Without
+  credentials, only Bandcamp sources work.
 
 ## Quick start (prebuilt image)
 
