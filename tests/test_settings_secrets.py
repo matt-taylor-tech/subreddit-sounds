@@ -104,3 +104,10 @@ def test_unknown_timezone_is_rejected_before_saving(client):
     assert r.status_code == 400
     assert "Unknown timezone" in r.text
     assert settings_service.get("sync_timezone") == before
+
+
+def test_test_reddit_button_reports_the_result(client, monkeypatch):
+    monkeypatch.setattr(routes.reddit_service, "test_connection", lambda sub, ua: (True, f"Connected to r/{sub}."))
+    r = client.post("/admin/settings/test-reddit")
+    assert r.status_code == 200
+    assert "&#10003; Connected to r/" in r.text

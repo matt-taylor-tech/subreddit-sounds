@@ -5,6 +5,8 @@ concatenates posts, and treats one failing subreddit as non-fatal. (Request
 pacing now lives process-wide inside reddit_service; see test_reddit_service.)
 """
 
+import pytest
+
 from app.services import sync_service
 
 
@@ -35,3 +37,13 @@ def test_fetch_all_posts_one_bad_sub_is_not_fatal(monkeypatch):
 
     assert sorted(p["data"]["url"] for p in posts) == ["u_good", "u_good2"]
     assert any("[r/bad] ERROR" in m for m in logs)
+
+
+def test_fetch_all_posts_raises_when_every_sub_fails(monkeypatch):
+    # "success, 0 tracks" every day hid a dead feed for a week; fail loudly.
+    def boom(sub, *a, **kw):
+        raise RuntimeError("404 Not Found")
+
+    monkeypatch.setattr(sync_service.reddit_service, "fetch_posts", boom)
+    with pytest.raises(RuntimeError, match="Couldn't fetch any subreddit"):
+        sync_service._fetch_all_posts(["a", "b"], "UA", "top", "week", lambda m: None)

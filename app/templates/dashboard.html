@@ -14,6 +14,15 @@
   {% endif %}
 </div>
 
+{% if views and not reddit_connected %}
+<div class="card" role="alert">
+  <h2>Reddit</h2>
+  <p class="error-text">&#10007; Subreddits can't be read</p>
+  <p class="muted-small">Reddit shut down its public RSS feeds in November 2026, so syncs fetch nothing until you add
+     approved Reddit API credentials under <a href="/admin/settings">Settings</a>. Bandcamp sources still work.</p>
+</div>
+{% endif %}
+
 {% for v in views %}
 <div class="card">
   <h2 class="card-title">

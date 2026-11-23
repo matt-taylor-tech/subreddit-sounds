@@ -12,6 +12,12 @@ approved via Reddit's developer support process), we use application-only OAuth
 (the ``client_credentials`` grant) against ``oauth.reddit.com`` instead, which
 returns the richer JSON listing.
 
+**Update, Nov 2026:** Reddit shut the public RSS feeds down (every feed has
+answered 404 with an empty "Not Found" Atom document since about 2026-11-17).
+Without OAuth credentials there is now no way to read a subreddit, so the RSS
+path raises ``RSS_SHUTDOWN_MESSAGE`` and the subreddit check stops calling a
+404 proof that a subreddit doesn't exist.
+
 Either way, ``fetch_posts`` yields the same shape the resolver expects:
 ``[{"data": {"url": <external link>, "title": <post title>}}, ...]``.
 """
@@ -35,6 +41,12 @@ _OAUTH_API = "https://oauth.reddit.com"
 _PUBLIC_API = "https://www.reddit.com"
 
 _ATOM = "{http://www.w3.org/2005/Atom}"
+
+RSS_SHUTDOWN_MESSAGE = (
+    "Reddit shut down its public RSS feeds in November 2026, so subreddits can no longer be read "
+    "without Reddit API credentials. Add an approved Reddit client ID and secret under "
+    "Settings → Reddit to resume syncing."
+)
 # The external submission URL is the "[link]" anchor inside each entry's HTML
 # content (the entry's own <link> always points to the comments page).
 _LINK_ANCHOR = re.compile(r'<a\s+href="([^"]+)"\s*>\s*\[link\]', re.IGNORECASE)
@@ -193,6 +205,9 @@ def check_subreddit(subreddit: str, user_agent: str) -> SubredditCheck:
             )
         return SubredditCheck(True, "ok", f"r/{name} exists and is readable.", definitive=True)
     if r.status_code == 404:
+        if not with_creds:
+            # Every public feed 404s since the RSS shutdown, so this proves nothing.
+            return SubredditCheck(False, "rss_shutdown", RSS_SHUTDOWN_MESSAGE, definitive=False)
         return SubredditCheck(
             False, "not_found", f"r/{name} doesn't exist (Reddit returned 404). Check the spelling.", definitive=True
         )
@@ -282,9 +297,18 @@ def _get_with_retry(
             raise RuntimeError(_blocked_message(429, subreddit, user_agent))
         if r.status_code == 403:
             raise RuntimeError(_blocked_message(403, subreddit, user_agent))
+        if r.status_code == 404 and _is_rss_shutdown(r):
+            raise RuntimeError(RSS_SHUTDOWN_MESSAGE)
         r.raise_for_status()
         return r
     raise RuntimeError(_blocked_message(429, subreddit, user_agent))  # exhausted
+
+
+def _is_rss_shutdown(response: httpx.Response) -> bool:
+    """The post-shutdown answer: a 404 carrying an empty "Not Found" Atom feed."""
+    if "atom+xml" not in response.headers.get("content-type", ""):
+        return False
+    return "<title>Not Found</title>" in response.text and "<entry>" not in response.text
 
 
 # ---------------------------------------------------------------------------
@@ -408,6 +432,22 @@ def _get_access_token(user_agent: str) -> str:
         }
     )
     return data["access_token"]
+
+
+def test_connection(subreddit: str, user_agent: str) -> tuple[bool, str]:
+    """Settings-page check: do the saved credentials actually read a subreddit?
+
+    Always fetches a fresh token (a cached one could hide a bad new secret),
+    then reads a handful of posts the same way a sync does.
+    """
+    if not has_credentials():
+        return False, "No Reddit client ID and secret saved yet. Enter both, save, then test."
+    settings_service.put_many({"reddit_access_token": "", "reddit_token_expiry": "0"})
+    try:
+        posts = _fetch_via_oauth(subreddit, user_agent, "top", "week", 5, _noop_log)
+    except (RuntimeError, httpx.HTTPError) as exc:
+        return False, str(exc)
+    return True, f"Connected. Read {len(posts)} of this week's top posts from r/{subreddit}."
 
 
 def _blocked_message(status_code: int, subreddit: str, user_agent: str) -> str:

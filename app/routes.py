@@ -123,6 +123,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "dashboard.html",
         {
             "spotify_connected": connected,
+            "reddit_connected": reddit_service.has_credentials(),
             "sync_timezone": settings_service.get("sync_timezone"),
             "views": views,
         },
@@ -320,6 +321,21 @@ def settings_save(
         request,
         "settings.html",
         {"settings": _settings_context(), "saved": True},
+    )
+
+
+@router.post("/admin/settings/test-reddit")
+def settings_test_reddit(request: Request, db: Session = Depends(get_db), _csrf: None = Depends(verify_csrf)):
+    require_auth(request)
+    # Test against a subreddit the user actually syncs, so "connected" means it.
+    subs = [s for t in targets_service.list_targets(db) for s in reddit_service.parse_subreddits(t.subreddits)]
+    subreddit = subs[0] if subs else "Music"
+    ok, message = reddit_service.test_connection(subreddit, settings_service.get("reddit_user_agent"))
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {"settings": _settings_context(), "saved": False, "reddit_test": {"ok": ok, "message": message}},
+        status_code=200 if ok else 400,
     )
 
 

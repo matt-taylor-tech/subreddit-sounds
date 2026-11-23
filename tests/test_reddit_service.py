@@ -46,8 +46,11 @@ class FakeClient:
     last one once exhausted — used to simulate a 429 that later recovers.
     """
 
-    def __init__(self, calls, *, get_status=200, get_statuses=None, get_text=ATOM, get_json=None, **kwargs):
+    def __init__(
+        self, calls, *, get_status=200, get_statuses=None, get_text=ATOM, get_json=None, get_headers=None, **kwargs
+    ):
         self._calls = calls
+        self._get_headers = get_headers
         self._get_status = get_status
         self._get_statuses = list(get_statuses) if get_statuses else None
         self._get_text = get_text
@@ -69,7 +72,7 @@ class FakeClient:
             status = self._get_statuses.pop(0) if len(self._get_statuses) > 1 else self._get_statuses[0]
         else:
             status = self._get_status
-        return FakeResp(status, text=self._get_text, payload=self._get_json)
+        return FakeResp(status, text=self._get_text, payload=self._get_json, headers=self._get_headers)
 
 
 @pytest.fixture(autouse=True)
@@ -353,7 +356,8 @@ def test_check_subreddit_ok_via_rss(settings, monkeypatch):
     assert get[3] == {"limit": 1}  # lightweight: one entry
 
 
-def test_check_subreddit_404_is_definitive_not_found(settings, monkeypatch):
+def test_check_subreddit_404_with_credentials_is_definitive_not_found(settings, monkeypatch):
+    settings.update({"reddit_client_id": "id", "reddit_client_secret": "sec"})
     calls: list = []
     _patch_httpx(monkeypatch, calls, get_status=404)
 
@@ -362,6 +366,42 @@ def test_check_subreddit_404_is_definitive_not_found(settings, monkeypatch):
     assert result.ok is False
     assert result.status == "not_found"
     assert result.definitive is True  # this is what blocks a save
+
+
+def test_check_subreddit_404_on_public_feed_no_longer_blocks_a_save(settings, monkeypatch):
+    # Since the Nov 2026 RSS shutdown every public feed 404s, so a 404 there
+    # can't mean "this subreddit doesn't exist"; rejecting it blocked every save.
+    calls: list = []
+    _patch_httpx(monkeypatch, calls, get_status=404)
+
+    result = reddit_service.check_subreddit("MelodicDeathMetal", UA)
+
+    assert result.status == "rss_shutdown"
+    assert result.definitive is False
+
+
+_SHUTDOWN_FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+<id>https://rss.reddit.com/</id>
+<title>Not Found</title>
+</feed>"""
+
+
+def test_rss_shutdown_feed_raises_an_explanation(settings, monkeypatch):
+    calls: list = []
+    _patch_httpx(
+        monkeypatch,
+        calls,
+        get_status=404,
+        get_text=_SHUTDOWN_FEED,
+        get_headers={"content-type": "application/atom+xml; charset=UTF-8"},
+    )
+
+    with pytest.raises(RuntimeError) as exc:
+        reddit_service.fetch_posts("MelodicDeathMetal", UA, "top", "week")
+
+    assert str(exc.value) == reddit_service.RSS_SHUTDOWN_MESSAGE
+    assert "Settings" in str(exc.value)
 
 
 def test_check_subreddit_403_anonymous_is_ambiguous(settings, monkeypatch):
@@ -452,3 +492,39 @@ class _CtxClient:
 
     def get(self, url, headers=None, params=None):
         return self._resp
+
+
+def test_connection_without_credentials_says_what_to_do(settings):
+    ok, message = reddit_service.test_connection("Metal", UA)
+    assert ok is False and "client ID and secret" in message
+
+
+def test_connection_reads_posts_with_a_fresh_token(settings, monkeypatch):
+    settings.update(
+        {
+            "reddit_client_id": "id",
+            "reddit_client_secret": "sec",
+            "reddit_access_token": "STALE",
+            "reddit_token_expiry": "9e12",
+        }
+    )
+    calls: list = []
+    _patch_httpx(monkeypatch, calls)
+
+    ok, message = reddit_service.test_connection("Metal", UA)
+
+    assert ok is True and "r/Metal" in message
+    assert calls[0][0] == "POST"  # re-authenticated rather than trusting the cached token
+    assert calls[1][2] == "Bearer TOK123"
+
+
+def test_connection_reports_rejected_credentials(settings, monkeypatch):
+    settings.update({"reddit_client_id": "id", "reddit_client_secret": "wrong"})
+
+    class _Reject(FakeClient):
+        def post(self, url, data=None, auth=None, headers=None):
+            return FakeResp(401)
+
+    monkeypatch.setattr(reddit_service.httpx, "Client", lambda **kw: _Reject([], **kw))
+    ok, message = reddit_service.test_connection("Metal", UA)
+    assert ok is False and "401" in message

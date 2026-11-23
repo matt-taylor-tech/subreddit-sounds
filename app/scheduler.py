@@ -19,7 +19,13 @@ _log = logging.getLogger(__name__)
 class SchedulerManager:
     def __init__(self, sync_service: SyncService) -> None:
         self.sync_service = sync_service
-        self.scheduler = BackgroundScheduler(timezone="UTC")
+        # APScheduler's default misfire grace is 1 second: a job that fires even
+        # a second late (a busy or briefly paused VM) is silently skipped, which
+        # cost whole days of syncs in production. An hour still catches a job
+        # that is genuinely stale; coalesce folds a backlog into a single run.
+        self.scheduler = BackgroundScheduler(
+            timezone="UTC", job_defaults={"misfire_grace_time": 3600, "coalesce": True}
+        )
 
     def start(self) -> None:
         """Schedule per-target jobs if setup has been completed."""
