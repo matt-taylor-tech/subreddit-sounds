@@ -147,9 +147,26 @@
 </form>
 
 <div class="card">
-  <h2>Import / Export</h2>
-  {% if imported %}<p class="ok-text" role="status">&#10003; Configuration imported.</p>{% endif %}
-  <p class="muted-small">Back up or move your playlists and global settings as a JSON file.</p>
+  <h2>Backup &amp; restore</h2>
+  {% if restored %}
+  <p class="ok-text" role="status">&#10003; Restored. Now holding {{ restored.playlists }} playlist(s),
+     {{ restored.settings }} setting(s), {{ restored.blocked_tracks }} blocked track(s), {{ restored.runs }} run(s)
+     and {{ restored.cached_matches }} cached match(es).{% if not restored.has_spotify %} Spotify isn't connected in
+     this file, so reconnect it from the dashboard.{% endif %}</p>
+  {% endif %}
+  {% if backup_summary %}
+  <p class="muted-small">This install holds {{ backup_summary.playlists }} playlist(s), {{ backup_summary.settings }}
+     setting(s), {{ backup_summary.blocked_tracks }} blocked track(s), {{ backup_summary.runs }} run(s) and
+     {{ backup_summary.cached_matches }} cached match(es).</p>
+  {% endif %}
+
+  <form method="post" action="/admin/settings/backup" class="mb-md">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <button type="submit">Download full backup (.db)</button>
+    <small class="muted-small">Everything: settings <strong>including secrets</strong> (admin login, Spotify and Reddit
+       credentials), playlists, block-lists, run history and cached matches. Store it securely. To move to a new host,
+       restore it on the new install's setup page.</small>
+  </form>
 
   <form method="post" action="/admin/settings/export" class="mb-md">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
@@ -157,17 +174,18 @@
       <input type="checkbox" name="include_secrets" value="true" />
       Include secrets (API keys, tokens, admin password hash)
     </label>
-    <small class="muted-small">Leave off for a safe-to-share file. If checked, the download contains credentials, so store it securely.</small>
-    <div class="mt-sm"><button type="submit" class="btn-secondary">Export settings</button></div>
+    <div class="mt-sm"><button type="submit" class="btn-secondary">Export settings (.json)</button></div>
+    <small class="muted-small">Settings and playlists only, block-lists included; no run history or cached matches.
+       Without secrets it's safe to share.</small>
   </form>
 
   <form method="post" action="/admin/settings/import" enctype="multipart/form-data"
-        data-confirm="Import settings? This replaces all of your current playlists and global settings with the contents of the file, and cannot be undone.">
+        data-confirm="Restore this file? It replaces your current playlists and settings (a full backup replaces everything, including history) and cannot be undone.">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <label for="import_file">Import a settings file</label><br />
-    <input id="import_file" type="file" name="file" accept="application/json,.json" required />
-    <small class="muted-small">Replaces your current playlists and applies the settings from the file. A file exported without secrets won't restore credentials, so you'll re-connect Spotify afterward.</small>
-    <div class="mt-sm"><button type="submit" class="btn-danger">Import settings</button></div>
+    <label for="import_file">Restore a backup or settings file</label><br />
+    <input id="import_file" type="file" name="file" accept=".db,.json,application/json,application/vnd.sqlite3" required />
+    <small class="muted-small">Accepts a full backup (<code>.db</code>) or a settings export (<code>.json</code>).</small>
+    <div class="mt-sm"><button type="submit" class="btn-danger">Restore</button></div>
   </form>
 </div>
 {% endblock %}

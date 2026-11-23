@@ -13,7 +13,7 @@ from app.scheduler import SchedulerManager
 from app.services.sync_service import SyncService
 from app.setup_wizard import router as setup_router
 
-_SETUP_BYPASS = {"/setup", "/healthz"}
+_SETUP_BYPASS = {"/setup", "/setup/restore", "/healthz"}
 
 
 class SetupRedirectMiddleware(BaseHTTPMiddleware):

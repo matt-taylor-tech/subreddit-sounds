@@ -111,3 +111,13 @@ def test_test_reddit_button_reports_the_result(client, monkeypatch):
     r = client.post("/admin/settings/test-reddit")
     assert r.status_code == 200
     assert "&#10003; Connected to r/" in r.text
+
+
+def test_settings_offers_a_full_backup_and_says_what_is_in_it(client):
+    page = client.get("/admin/settings").text
+    assert "This install holds" in page and "Download full backup" in page
+
+    r = client.post("/admin/settings/backup")
+    assert r.status_code == 200
+    assert r.content.startswith(b"SQLite format 3\x00")
+    assert 'filename="subreddit-sounds-backup-' in r.headers["content-disposition"]

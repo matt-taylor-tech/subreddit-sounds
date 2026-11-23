@@ -15,6 +15,26 @@
   <p class="error-text">{{ error }}</p>
   {% endif %}
 
+  {% if restored %}
+  <p class="ok-text" role="status">&#10003; Restored {{ restored.playlists }} playlist(s) and {{ restored.settings }} setting(s)
+     ({{ restored.blocked_tracks }} blocked track(s)). The file had no admin login{% if not restored.has_spotify %} or
+     Spotify credentials{% endif %}, so fill those in below to finish.</p>
+  {% else %}
+  <div class="card">
+    <h2>Moving from another install?</h2>
+    <p class="muted-small">Restore a backup instead of filling this in. A <strong>full backup</strong> (<code>.db</code>,
+       from Settings &rarr; Backup) brings back everything, including your login, Spotify connection, playlists,
+       block-lists and history, and you'll sign in with your old login. A <strong>settings export</strong>
+       (<code>.json</code>) without secrets restores the playlists; you then finish the steps below.</p>
+    <form method="post" action="/setup/restore" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <input type="file" name="file" accept=".db,.json,application/json,application/vnd.sqlite3" required />
+      <div class="mt-sm"><button type="submit" class="btn-secondary">Restore from backup</button></div>
+    </form>
+    <p class="muted-small">Don't run the old and new installs at the same time: both would sync the same playlists.</p>
+  </div>
+  {% endif %}
+
   <form method="post" action="/setup">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
 
@@ -34,7 +54,23 @@
     </div>
 
     <h2>2. Reddit</h2>
-    <p>Reddit shut down its public RSS feeds in November 2026, so reading subreddits now needs approved Reddit API credentials (a client ID and secret). New credentials are granted through Reddit's developer support process. You can finish setup without them and add them later under Settings. You'll pick subreddits per playlist later.</p>
+    <p>Reddit shut down its public RSS feeds in November 2026, so reading subreddits needs Reddit API credentials
+       (a client ID and secret). You can finish setup without them and add them later under Settings, where a
+       <strong>Test Reddit connection</strong> button checks them. You'll pick subreddits per playlist later.</p>
+    <details>
+      <summary>How to get Reddit credentials</summary>
+      <p class="muted-small">At <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener">reddit.com/prefs/apps</a>,
+         choose <em>create another app&hellip;</em>:</p>
+      <ul class="muted-small">
+        <li><strong>type:</strong> script (for personal use)</li>
+        <li><strong>about url:</strong> <code>https://github.com/matt-taylor-tech/subreddit-sounds</code></li>
+        <li><strong>redirect uri:</strong> <code>http://localhost:8000</code>. It's never used (the app signs in as itself,
+            not as you), but Reddit requires a value.</li>
+      </ul>
+      <p class="muted-small">The client ID is the short string under the app's name; the secret is labelled
+         <em>secret</em>. The app never needs your Reddit password. Since Reddit's Nov 2025 policy change, new apps may
+         need approval through Reddit's developer support process before they work.</p>
+    </details>
     <div class="row">
       <div class="input-block flex-1">
         <label for="reddit_sort">Sort</label><br />
@@ -58,19 +94,18 @@
     <div class="input-block">
       <label for="reddit_user_agent">User-Agent</label><br />
       <input id="reddit_user_agent" name="reddit_user_agent" value="web:subreddit-sounds:0.1 (by /u/suiifelse)" />
-      <small class="muted-small">Reddit format: <code>&lt;platform&gt;:&lt;app-id&gt;:&lt;version&gt; (by /u/&lt;username&gt;)</code>.</small>
+      <small class="muted-small">Reddit wants this to name your Reddit account: <code>&lt;platform&gt;:&lt;app-id&gt;:&lt;version&gt; (by /u/&lt;your username&gt;)</code>.</small>
     </div>
     <div class="row">
       <div class="input-block flex-1">
-        <label for="reddit_client_id">OAuth Client ID <span class="muted-small">(optional)</span></label><br />
+        <label for="reddit_client_id">Client ID</label><br />
         <input id="reddit_client_id" name="reddit_client_id" placeholder="required to read subreddits" />
       </div>
       <div class="input-block flex-1">
-        <label for="reddit_client_secret">OAuth Client Secret</label><br />
+        <label for="reddit_client_secret">Client Secret</label><br />
         <input id="reddit_client_secret" name="reddit_client_secret" type="password" autocomplete="off" />
       </div>
     </div>
-    <p><small class="muted-small">Since Reddit's Nov 2025 policy change, credentials can't be self-created at reddit.com/prefs/apps; they're approved through Reddit's developer support process.</small></p>
 
     <h2>3. Spotify</h2>
     <p>Create a free app at

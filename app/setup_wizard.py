@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, Form, Request, status
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 
 from app.auth import hash_password
 from app.csrf import csrf_context, verify_csrf
 from app.curated import curated_context
-from app.services import settings_service
+from app.db import get_db
+from app.services import backup_service, settings_service
 from app.timezones import is_valid_timezone
 from app.version import version_context
 
@@ -22,6 +24,36 @@ def setup_page(request: Request):
     if settings_service.is_setup_complete():
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse(request, "setup.html", {"error": None})
+
+
+@router.post("/setup/restore")
+def setup_restore(
+    request: Request,
+    _csrf: None = Depends(verify_csrf),
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...),
+):
+    """Start a fresh install from a backup instead of typing everything in again.
+
+    Same gate as the wizard: only while setup is incomplete. Whoever can reach
+    this page could already create the admin account, so restoring one from a
+    file grants nothing extra.
+    """
+    if settings_service.is_setup_complete():
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        summary = backup_service.restore(file.file.read(), db)
+    except (ValueError, KeyError, TypeError) as exc:
+        return templates.TemplateResponse(request, "setup.html", {"error": f"Restore failed: {exc}"}, status_code=400)
+
+    scheduler_manager = getattr(request.app.state, "scheduler_manager", None)
+    if scheduler_manager:
+        scheduler_manager.reschedule()
+    if summary["has_admin"]:
+        return RedirectResponse(url="/login?restored=1", status_code=status.HTTP_303_SEE_OTHER)
+    # A settings export made without secrets: keep the playlists, ask only for
+    # what the file couldn't carry.
+    return templates.TemplateResponse(request, "setup.html", {"error": None, "restored": summary})
 
 
 @router.post("/setup")

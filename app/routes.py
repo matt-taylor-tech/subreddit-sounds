@@ -1,5 +1,6 @@
 import json
 import secrets
+from datetime import datetime
 from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
@@ -15,6 +16,7 @@ from app.curated import curated_context
 from app.db import get_db
 from app.models import Run
 from app.services import (
+    backup_service,
     bandcamp_service,
     config_io,
     genre_scan_service,
@@ -49,8 +51,8 @@ def healthz() -> dict[str, str]:
 
 
 @router.get("/login")
-def login_page(request: Request):
-    return templates.TemplateResponse(request, "login.html", {"error": None})
+def login_page(request: Request, restored: bool = False):
+    return templates.TemplateResponse(request, "login.html", {"error": None, "restored": restored})
 
 
 @router.post("/login")
@@ -242,12 +244,12 @@ def _settings_context() -> dict:
 
 
 @router.get("/admin/settings")
-def settings_page(request: Request):
+def settings_page(request: Request, db: Session = Depends(get_db)):
     require_auth(request)
     return templates.TemplateResponse(
         request,
         "settings.html",
-        {"settings": _settings_context(), "saved": False},
+        {"settings": _settings_context(), "saved": False, "backup_summary": backup_service.summarize(db)},
     )
 
 
@@ -365,20 +367,31 @@ def settings_import(
 ):
     require_auth(request)
     try:
-        data = json.loads(file.file.read())
-        config_io.import_config(db, data)
+        summary = backup_service.restore(file.file.read(), db)
     except (ValueError, KeyError, TypeError, UnicodeDecodeError) as exc:
         return templates.TemplateResponse(
             request,
             "settings.html",
-            {"settings": _settings_context(), "saved": False, "error": f"Import failed: {exc}"},
+            {"settings": _settings_context(), "saved": False, "error": f"Restore failed: {exc}"},
             status_code=400,
         )
     request.app.state.scheduler_manager.reschedule()
     return templates.TemplateResponse(
         request,
         "settings.html",
-        {"settings": _settings_context(), "saved": True, "imported": True},
+        {"settings": _settings_context(), "saved": False, "restored": summary, "backup_summary": summary},
+    )
+
+
+@router.post("/admin/settings/backup")
+def settings_backup(request: Request, _csrf: None = Depends(verify_csrf)):
+    """Download the whole database: settings, secrets, playlists, history, cache."""
+    require_auth(request)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M")
+    return Response(
+        content=backup_service.make_backup(),
+        media_type="application/vnd.sqlite3",
+        headers={"Content-Disposition": f'attachment; filename="subreddit-sounds-backup-{stamp}.db"'},
     )
 
 

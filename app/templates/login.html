@@ -4,6 +4,9 @@
 <div class="card login-card">
   <h1>Admin Login</h1>
   <p>Single-admin access for the self-hosted console.</p>
+  {% if restored %}
+  <p class="ok-text" role="status">&#10003; Backup restored. Log in with the admin login from your old install.</p>
+  {% endif %}
   {% if error %}
   <p class="error-text" role="alert">{{ error }}</p>
   {% endif %}
