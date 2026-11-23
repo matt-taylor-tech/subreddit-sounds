@@ -492,3 +492,39 @@ class _CtxClient:
 
     def get(self, url, headers=None, params=None):
         return self._resp
+
+
+def test_connection_without_credentials_says_what_to_do(settings):
+    ok, message = reddit_service.test_connection("Metal", UA)
+    assert ok is False and "client ID and secret" in message
+
+
+def test_connection_reads_posts_with_a_fresh_token(settings, monkeypatch):
+    settings.update(
+        {
+            "reddit_client_id": "id",
+            "reddit_client_secret": "sec",
+            "reddit_access_token": "STALE",
+            "reddit_token_expiry": "9e12",
+        }
+    )
+    calls: list = []
+    _patch_httpx(monkeypatch, calls)
+
+    ok, message = reddit_service.test_connection("Metal", UA)
+
+    assert ok is True and "r/Metal" in message
+    assert calls[0][0] == "POST"  # re-authenticated rather than trusting the cached token
+    assert calls[1][2] == "Bearer TOK123"
+
+
+def test_connection_reports_rejected_credentials(settings, monkeypatch):
+    settings.update({"reddit_client_id": "id", "reddit_client_secret": "wrong"})
+
+    class _Reject(FakeClient):
+        def post(self, url, data=None, auth=None, headers=None):
+            return FakeResp(401)
+
+    monkeypatch.setattr(reddit_service.httpx, "Client", lambda **kw: _Reject([], **kw))
+    ok, message = reddit_service.test_connection("Metal", UA)
+    assert ok is False and "401" in message

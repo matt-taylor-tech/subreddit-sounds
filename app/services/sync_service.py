@@ -357,7 +357,11 @@ class SyncService:
 
             # --- Reddit ---
             label = f"{sort}/{timeframe}" if sort == "top" else sort
-            auth_label = "OAuth API" if reddit_service.has_credentials() else "public RSS"
+            auth_label = (
+                "Reddit API"
+                if reddit_service.has_credentials()
+                else "public RSS (shut down; add Reddit API credentials)"
+            )
             log(f"[{target.name}] playlist {playlist_id}")
             log(f"Fetching {len(subreddits)} subreddit(s) [{label}] via {auth_label}: {', '.join(subreddits)}")
             reddit_error: str | None = None

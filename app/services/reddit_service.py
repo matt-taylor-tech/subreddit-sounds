@@ -434,6 +434,22 @@ def _get_access_token(user_agent: str) -> str:
     return data["access_token"]
 
 
+def test_connection(subreddit: str, user_agent: str) -> tuple[bool, str]:
+    """Settings-page check: do the saved credentials actually read a subreddit?
+
+    Always fetches a fresh token (a cached one could hide a bad new secret),
+    then reads a handful of posts the same way a sync does.
+    """
+    if not has_credentials():
+        return False, "No Reddit client ID and secret saved yet. Enter both, save, then test."
+    settings_service.put_many({"reddit_access_token": "", "reddit_token_expiry": "0"})
+    try:
+        posts = _fetch_via_oauth(subreddit, user_agent, "top", "week", 5, _noop_log)
+    except (RuntimeError, httpx.HTTPError) as exc:
+        return False, str(exc)
+    return True, f"Connected. Read {len(posts)} of this week's top posts from r/{subreddit}."
+
+
 def _blocked_message(status_code: int, subreddit: str, user_agent: str) -> str:
     if status_code == 429:
         return (

@@ -45,17 +45,26 @@
     </div>
     <div class="row">
       <div class="input-block flex-1">
-        <label for="reddit_client_id">OAuth Client ID <span class="muted-small">(optional)</span></label><br />
+        <label for="reddit_client_id">Client ID</label><br />
         <input id="reddit_client_id" name="reddit_client_id" value="{{ settings.reddit_client_id }}" placeholder="required to read subreddits" />
       </div>
       <div class="input-block flex-1">
-        <label for="reddit_client_secret">OAuth Client Secret</label><br />
+        <label for="reddit_client_secret">Client Secret</label><br />
         <input id="reddit_client_secret" name="reddit_client_secret" type="password" autocomplete="off"
                placeholder="{{ 'stored, leave blank to keep it' if settings.reddit_client_secret_set else 'not set' }}" />
         <small class="muted-small">Never shown once saved. Type a new value only to replace it.</small>
       </div>
     </div>
     <small class="muted-small">Reddit shut down its public RSS feeds in November 2026, so reading subreddits now needs approved Reddit API credentials (a client ID and secret). New credentials are granted through Reddit's developer support process.</small>
+    <p class="mt-sm">
+      {# Belongs to its own form below, so Enter in a field still saves settings. #}
+      <button type="submit" form="reddit-test-form" class="btn-secondary">Test Reddit connection</button>
+      <small class="muted-small">Save first. Reads a few posts from one of your playlists' subreddits.</small>
+    </p>
+    {% if reddit_test %}
+    <p class="{{ 'ok-text' if reddit_test.ok else 'error-text' }}" role="status">
+      {% if reddit_test.ok %}&#10003;{% else %}&#10007;{% endif %} {{ reddit_test.message }}</p>
+    {% endif %}
   </div>
 
   <div class="card">
@@ -131,6 +140,10 @@
   </div>
 
   <button type="submit">Save Settings</button>
+</form>
+
+<form id="reddit-test-form" method="post" action="/admin/settings/test-reddit">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
 </form>
 
 <div class="card">
